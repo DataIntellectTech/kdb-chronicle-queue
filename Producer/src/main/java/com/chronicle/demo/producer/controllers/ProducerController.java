@@ -23,6 +23,9 @@ public class ProducerController {
     @Value("${chronicle.quote.queue}")
     String quoteQueuePath;
 
+    @Value("${producer.messageFrequency: 1000}")
+    int messageFrequency;
+
     private boolean startQuoteGenerator = false;
 
     @GetMapping(value = "/quoteLoader")
@@ -63,7 +66,7 @@ public class ProducerController {
         long numMsgsWritten=0L;
 
         while (startQuoteGenerator) {
-            Thread.sleep(2000);
+            Thread.sleep(messageFrequency);
             List<String> entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
             int randomBidPrice = getRandomNumberBetweenTwoNumbers(entry.get(1),entry.get(2));
 

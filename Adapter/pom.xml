@@ -9,8 +9,8 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.chronicle.demo.adapter</groupId>
-	<artifactId>Adapter</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<artifactId>adapter</artifactId>
+	<version>0.1</version>
 	<name>Adapter</name>
 	<description>Chronicle kdb Adapter</description>
 

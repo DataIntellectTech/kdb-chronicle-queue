@@ -17,7 +17,7 @@ import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.stereotype.Component;
 
 @Component
-@Endpoint(id = "adapterinfo")
+@Endpoint(id = "status")
 public class Adapter{
 
     @Autowired
