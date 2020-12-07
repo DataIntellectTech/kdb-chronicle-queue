@@ -21,10 +21,10 @@ Repo contains:
 
 #### Example:
 
-> server.port=9090 
-> server.servlet.context-path=/producer 
-> producer.messageFrequency=10 
-> chronicle.quote.queue=C:\\ChronicleQueue\\Producer\\quote 
+> server.port=9090 <br />
+> server.servlet.context-path=/producer <br />
+> producer.messageFrequency=10 <br />
+> chronicle.quote.queue=C:\\ChronicleQueue\\Producer\\quote <br />
 
 ### Running Producer
 Run java application as follows:
@@ -53,19 +53,19 @@ Run java application as follows:
 
 #### Example:
 
-> server.port=8080 
-> management.endpoint.shutdown.enabled=true 
-> management.endpoint.info.enabled=true 
-> management.endpoints.web.exposure.include=* 
-> management.endpoints.web.base-path=/adapter 
-> management.endpoint.health.show-details=always 
-> chronicle.source=C:\\ChronicleQueue\\Producer\\quote 
-> adapter.tailerName=quoteTailer 
-> kdb.host=localhost 
-> kdb.port=5000 
-> kdb.login=username:password 
-> kdb.connection-enabled=true 
-> kdb.destination=quote 
+> server.port=8080 <br />
+> management.endpoint.shutdown.enabled=true <br />
+> management.endpoint.info.enabled=true <br />
+> management.endpoints.web.exposure.include=* <br />
+> management.endpoints.web.base-path=/adapter <br />
+> management.endpoint.health.show-details=always <br />
+> chronicle.source=C:\\ChronicleQueue\\Producer\\quote <br />
+> adapter.tailerName=quoteTailer <br />
+> kdb.host=localhost <br />
+> kdb.port=5000 <br />
+> kdb.login=username:password <br />
+> kdb.connection-enabled=true <br />
+> kdb.destination=quote <br />
 
 ### Starting
 Run java application as follows:
