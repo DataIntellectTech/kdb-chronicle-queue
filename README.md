@@ -50,6 +50,7 @@ Run java application as follows:
 - kdb.login: kdb+ login credentials
 - kdb.connection-enabled=true
 - kdb.destination: Name of kdb+ table to write to
+- kdb.destination.function: Name of function to use when writing to table
 
 #### Example:
 
@@ -66,10 +67,11 @@ Run java application as follows:
 > kdb.login=username:password <br />
 > kdb.connection-enabled=true <br />
 > kdb.destination=quote <br />
+> kdb.destination.function=.u.upd <br />
 
 ### Starting
 Run java application as follows:
-- java -jar adapter-0.1.jar --spring.config.location=classpath:/,C:/gitWorkarea/kdb-chronicle-queue/Adapter/config/producer.properties
+- java -jar adapter-0.1.jar --spring.config.location=classpath:/,C:/gitWorkarea/kdb-chronicle-queue/Adapter/config/adapter.properties
 
 If app can connect to source queue and kdb+ destination it will start transfer immendiately.
 
