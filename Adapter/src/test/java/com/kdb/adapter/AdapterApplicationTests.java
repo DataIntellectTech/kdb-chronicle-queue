@@ -1,4 +1,4 @@
-package com.chronicle.demo.adapter;
+package com.kdb.adapter;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,4 +1,4 @@
-package com.chronicle.demo.adapter.kdb;
+package com.kdb.adapter.kdb;
 
 /*
  * Copyright (c) 1998-2017 Kx Systems Inc.

@@ -1,6 +1,6 @@
-package com.chronicle.demo.adapter.kdb;
+package com.kdb.adapter.kdb;
 
-import com.chronicle.demo.adapter.messages.KdbMessage;
+import com.kdb.adapter.messages.KdbMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -84,6 +84,25 @@ public class KdbConnector {
             if (kdbConnectionEnabled) {
                 maintainKdbConnection();
                 kdbConnection.ks(kdbMessage.toString());
+                LOG.info("*** Persisted message to Kdb");
+            }
+        }
+        catch(Exception ex){
+            System.out.println("Problem saving message data " + ex.toString());
+        }
+    }
+
+    public void saveMessage(KdbMessage kdbMessage, String destinationTable, String kdbMethod){
+        try {
+            if (kdbConnectionEnabled) {
+                maintainKdbConnection();
+
+                // Merge kdbMessage data with destination table and method to create valid kdb syntax
+                // E.g.  value(`u.upd[`quote;(2020.12.01+15:06:27.333Z;`HEIN.AS;100;9014;100;24543;`XAMS;`XAMS)])
+                String kdbString = String.format("value(`%s[`%s;%s])", kdbMethod, destinationTable, kdbMessage.toString());
+                // Execute in kdb
+                kdbConnection.ks(kdbString);
+
                 LOG.info("*** Persisted message to Kdb");
             }
         }

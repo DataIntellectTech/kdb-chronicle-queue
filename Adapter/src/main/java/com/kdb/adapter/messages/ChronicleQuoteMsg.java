@@ -1,4 +1,4 @@
-package com.chronicle.demo.adapter.messages;
+package com.kdb.adapter.messages;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -8,6 +8,15 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class ChronicleQuoteMsg implements AdapterMessage{
+
+    private String time;
+    private String sym;
+    private String bid;
+    private String bsize;
+    private String ask;
+    private String assize;
+    private String bex;
+    private String aex;
 
     public ChronicleQuoteMsg(String time, String sym, String bid, String bsize, String ask, String assize, String bex, String aex) {
         this.time = time;
@@ -25,14 +34,5 @@ public class ChronicleQuoteMsg implements AdapterMessage{
         //E.g. Return value (2020.12.01+15:06:27.333Z;`HEIN.AS;100;9014;100;24543;`XAMS;`XAMS)
         return String.format("(%s;`%s;%s;%s;%s;%s;`%s;`%s)", this.time, this.sym, this.bid, this.bsize, this.ask, this.assize, this.bex, this.aex);
     }
-
-    private String time;
-    private String sym;
-    private String bid;
-    private String bsize;
-    private String ask;
-    private String assize;
-    private String bex;
-    private String aex;
 
 }
