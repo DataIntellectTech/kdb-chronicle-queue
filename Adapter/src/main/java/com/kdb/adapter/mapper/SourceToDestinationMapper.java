@@ -11,13 +11,13 @@ public interface SourceToDestinationMapper {
 
     @Mappings({
             @Mapping(target="time", source="chronicleQuoteMessage.time"),
-            @Mapping(target="sym", source="chronicleQuoteMessage.sym"),
+            @Mapping(target="sym", expression="java(\"`\" + chronicleQuoteMessage.getSym())"),
             @Mapping(target="bid", source="chronicleQuoteMessage.bid"),
             @Mapping(target="bsize", source="chronicleQuoteMessage.bsize"),
             @Mapping(target="ask", source="chronicleQuoteMessage.ask"),
             @Mapping(target="assize", source="chronicleQuoteMessage.assize"),
-            @Mapping(target="bex", source="chronicleQuoteMessage.bex"),
-            @Mapping(target="aex", source="chronicleQuoteMessage.aex")
+            @Mapping(target="bex", expression="java(\"`\" + chronicleQuoteMessage.getBex())"),
+            @Mapping(target="aex", expression="java(\"`\" + chronicleQuoteMessage.getAex())")
     })
     KdbMessage sourceToDestination(ChronicleQuoteMsg chronicleQuoteMessage);
 

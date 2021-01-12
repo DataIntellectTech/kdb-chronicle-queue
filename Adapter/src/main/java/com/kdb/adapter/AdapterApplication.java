@@ -19,21 +19,18 @@ public class AdapterApplication implements CommandLineRunner {
 	@Autowired
 	ChronicleKdbAdapter adapter;
 
-	@Value("${chronicle.source}")
-	String chronicleQueueSource;
-
 	public static void main(String[] args) {
 		SpringApplication.run(AdapterApplication.class, args);
 	}
 
 	@Override
 	public void run(String... args) {
-		adapter.processMessages(chronicleQueueSource);
+		adapter.processMessages();
 	}
 
 	@PreDestroy
 	public void onExit(){
-		adapter.tidyUp(chronicleQueueSource);
+		adapter.tidyUp();
 	}
 
 }

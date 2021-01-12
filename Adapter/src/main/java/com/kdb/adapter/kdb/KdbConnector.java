@@ -52,6 +52,16 @@ public class KdbConnector {
         }
     }
 
+    public void closeConnection()
+    {
+        try {
+            kdbConnection.close();
+        } catch (Exception e) {
+            LOG.warning("*** Encountered error in method closeConnection: " + e.getMessage());
+            kdbConnection = null;
+        }
+    }
+
     public void maintainKdbConnection() throws InterruptedException {
         try {
             if (null != kdbConnection){

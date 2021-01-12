@@ -26,8 +26,11 @@ public class ChronicleKdbAdapter {
     @Autowired
     KdbConnector kdbConnector;
 
+    @Value("${chronicle.source}")
+	private String chronicleQueueSource;
+
     @Value("${adapter.tailerName}")
-    String tailerName;
+    private String tailerName;
 
     @Value("${kdb.destination}")
     private String kdbDestination;
@@ -35,7 +38,7 @@ public class ChronicleKdbAdapter {
     @Value("${kdb.destination.function}")
     private String kdbDestinationFunction;
 
-    private String chronicleQueueSource="";
+    //private String chronicleQueueSource="";
     boolean keepRunning=true;
     long lastIndex = 0L;
 
@@ -55,7 +58,7 @@ public class ChronicleKdbAdapter {
     }
 
 
-    public void tidyUp(String chronicleQueueSource){
+    public void tidyUp(){
 
         keepRunning=false;
 
@@ -65,11 +68,9 @@ public class ChronicleKdbAdapter {
         LOG.info("Resources cleaned up");
     }
 
-    public void processMessages(String chronicleQueueSource){
+    public void processMessages(){
 
         LOG.info("Starting Chronicle kdb Adapter");
-
-        this.chronicleQueueSource = chronicleQueueSource;
 
         // 1. Connect to Chronicle Queue source
 
@@ -116,10 +117,11 @@ public class ChronicleKdbAdapter {
             );
         }
 
+        LOG.info("Stopping Chronicle kdb Adapter");
+
         tailer.readingDocument().close();
         queue.close();
 
-        LOG.info("Stopping Chronicle kdb Adapter");
-
+        kdbConnector.closeConnection();
     }
 }
