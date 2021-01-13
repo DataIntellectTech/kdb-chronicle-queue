@@ -84,9 +84,6 @@ public class ProducerController {
             String msg = buildMsg(tradeMsgFields, entry, randomBidPrice, formatTimeForKdb());
             String[] msgSplit = msg.split((","));
 
-            // value(`upd;`quote;(2020.01.24+14:20:29.217Z;`VOD.L;150;40918;150;11964;`XLON;`XLON))
-            //kafkaTemplate.send("quote.t", "quoteKey", String.format("value(`upd;`quote;(%s;`%s;%s;%s;%s;%s;`%s;`%s))", msgSplit[0].substring(7).trim(), msgSplit[1].split(":")[1].trim(), msgSplit[2].split(":")[1].trim(), msgSplit[3].split(":")[1].trim(), msgSplit[4].split(":")[1].trim(), msgSplit[5].split(":")[1].trim(), msgSplit[6].split(":")[1].trim(), msgSplit[7].split(":")[1].trim()));
-
             appender.writeDocument(w -> w.write("quote").marshallable(
                 m -> m.write("time").text(msgSplit[0].substring(7).trim())
                         .write("sym").text(msgSplit[1].split(":")[1].trim())
