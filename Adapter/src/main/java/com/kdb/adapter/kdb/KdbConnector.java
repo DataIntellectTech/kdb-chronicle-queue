@@ -41,7 +41,6 @@ public class KdbConnector {
                 } else {
                     LOG.info("*** Attempting to connect to Kdb server");
                     kdbConnection = new c(kdbHost, Integer.parseInt(kdbPort), kdbLogin);
-                    //kdbConnection = new c(kdbHost, Integer.parseInt(kdbPort));
                     Thread.sleep(5000);
                 }
             } catch (Exception e) {
@@ -79,8 +78,8 @@ public class KdbConnector {
     }
 
     private void testConnectionAndLogResult(String infoMsg) throws c.KException, IOException, InterruptedException {
-        Object queryResult = kdbConnection.k("trade");
-        if (6 == ((c.Flip)queryResult).x.length) {
+        Object queryResult = kdbConnection.k("quote");
+        if (9 == ((c.Flip)queryResult).x.length) {
             LOG.info(infoMsg);
             connectedToKdb = true;
         } else {
@@ -105,13 +104,11 @@ public class KdbConnector {
     public void saveMessage(KdbMessage kdbMessage, String destinationTable, String kdbMethod){
         try {
             if (kdbConnectionEnabled) {
+
                 maintainKdbConnection();
 
-                // Merge kdbMessage data with destination table and method to create valid kdb syntax
-                // E.g.  value(`u.upd[`quote;(2020.12.01+15:06:27.333Z;`HEIN.AS;100;9014;100;24543;`XAMS;`XAMS)])
-                String kdbString = String.format("value(`%s[`%s;%s])", kdbMethod, destinationTable, kdbMessage.toString());
-                // Execute in kdb
-                kdbConnection.ks(kdbString);
+                // Merge kdbMessage data with configured destination table and method to create valid kdb syntax
+                kdbConnection.ks(kdbMethod, destinationTable, kdbMessage.toObjectArray());
 
                 LOG.info("*** Persisted message to Kdb");
             }

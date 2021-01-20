@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Chronicle Queue ###
+*.cq4
+*.cq4t

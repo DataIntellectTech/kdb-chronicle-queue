@@ -1,33 +1,34 @@
 package com.kdb.adapter.messages;
 
+import java.time.LocalDateTime;
+
 public class ChronicleQuoteMsgBuilder{
 
-    private String time;
+    private LocalDateTime time;
     private String sym;
-    private String bid;
-    private String bsize;
-    private String ask;
-    private String assize;
+    private double bid;
+    private double bsize;
+    private double ask;
+    private double assize;
     private String bex;
     private String aex;
 
     public ChronicleQuoteMsgBuilder()
     {
-
     }
 
-    public ChronicleQuoteMsgBuilder(String time, String sym, String bid, String bsize, String ask, String assize, String bex, String aex) {
+    public ChronicleQuoteMsgBuilder(LocalDateTime time, String sym, double bid, double bsize, double ask, double assize, String bex, String aex) {
         this.time = time;
         this.sym = sym;
-        this.bid = bid + 'f';
-        this.bsize = bsize + 'f';
-        this.ask = ask + 'f';
-        this.assize = assize + 'f';
+        this.bid = bid;
+        this.bsize = bsize;
+        this.ask = ask;
+        this.assize = assize;
         this.bex = bex;
         this.aex = aex;
     }
 
-    public ChronicleQuoteMsgBuilder setTime(String time) {
+    public ChronicleQuoteMsgBuilder setTime(LocalDateTime time) {
         this.time = time;
         return this;
     }
@@ -37,22 +38,22 @@ public class ChronicleQuoteMsgBuilder{
         return this;
     }
 
-    public ChronicleQuoteMsgBuilder setBid(String bid) {
+    public ChronicleQuoteMsgBuilder setBid(double bid) {
         this.bid = bid;
         return this;
     }
 
-    public ChronicleQuoteMsgBuilder setBsize(String bsize) {
+    public ChronicleQuoteMsgBuilder setBsize(double bsize) {
         this.bsize = bsize;
         return this;
     }
 
-    public ChronicleQuoteMsgBuilder setAsk(String ask) {
+    public ChronicleQuoteMsgBuilder setAsk(double ask) {
         this.ask = ask;
         return this;
     }
 
-    public ChronicleQuoteMsgBuilder setAssize(String assize) {
+    public ChronicleQuoteMsgBuilder setAssize(double assize) {
         this.assize = assize;
         return this;
     }

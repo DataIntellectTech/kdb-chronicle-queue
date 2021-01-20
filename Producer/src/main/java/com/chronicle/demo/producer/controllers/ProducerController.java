@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -45,15 +47,6 @@ public class ProducerController {
     }
 
     public void quoteGenerator() throws InterruptedException {
-        List<String> tradeMsgFields = new ArrayList<>();
-        tradeMsgFields.add("time");
-        tradeMsgFields.add("sym");
-        tradeMsgFields.add("bid");
-        tradeMsgFields.add("bsize");
-        tradeMsgFields.add("ask");
-        tradeMsgFields.add("assize");
-        tradeMsgFields.add("bex");
-        tradeMsgFields.add("aex");
 
         List<List<String>> symbolsAndExchanges = new ArrayList<>();
         symbolsAndExchanges.add(buildListOfSymbolExchangeAndPrice("VOD.L", "150", "156", "XLON"));
@@ -80,50 +73,24 @@ public class ProducerController {
             // bex : XLON
             // aex : XLON
 
-            //Build random message
-            String msg = buildMsg(tradeMsgFields, entry, randomBidPrice, formatTimeForKdb());
-            String[] msgSplit = msg.split((","));
-
             appender.writeDocument(w -> w.write("quote").marshallable(
-                m -> m.write("time").text(msgSplit[0].substring(7).trim())
-                        .write("sym").text(msgSplit[1].split(":")[1].trim())
-                        .write("bid").text(msgSplit[2].split(":")[1].trim())
-                        .write("bsize").text(msgSplit[3].split(":")[1].trim())
-                        .write("ask").text(msgSplit[4].split(":")[1].trim())
-                        .write("assize").text(msgSplit[5].split(":")[1].trim())
-                        .write("bex").text(msgSplit[6].split(":")[1].trim())
-                        .write("aex").text(msgSplit[7].split(":")[1].trim())
+                    m -> m.write("time").dateTime(LocalDateTime.now())
+                            .write("sym").text(entry.get(0))
+                            .write("bid").float64(randomBidPrice)
+                            .write("bsize").float64(getRandomNumberBetweenTwoNumbers("1000","50000"))
+                            .write("ask").float64(randomBidPrice)
+                            .write("assize").float64(getRandomNumberBetweenTwoNumbers("1000","50000"))
+                            .write("bex").text(entry.get(3))
+                            .write("aex").text(entry.get(3))
             ));
 
             long index = appender.lastIndexAppended();
             numMsgsWritten++;
-            //log me
-            LOG.info("*** Quote Message written to index ["+ index +"] / (" + numMsgsWritten + " written) / Content: "+ buildMsg(tradeMsgFields, entry, randomBidPrice, Calendar.getInstance().toInstant().toString()));
+            LOG.info("*** Quote Message written to index ["+ index +"] / (" + numMsgsWritten + " written)");
         }
 
         queue.close();
 
-    }
-
-    private String formatTimeForKdb() {
-        String time = Calendar.getInstance().toInstant().toString();
-        time = time.replace("-",".");
-        time = time.replace("T","+");
-        return time;
-    }
-
-    private String buildMsg(List<String> tradeMsgFields, List<String> entry, int randomBidPrice, String time) {
-        StringBuilder tradeMsg = new StringBuilder();
-        tradeMsg.append(tradeMsgFields.get(0) + " : " + time + ", ");
-        tradeMsg.append(tradeMsgFields.get(1) + " : " + entry.get(0) + ", ");
-        tradeMsg.append(tradeMsgFields.get(2) + " : " + randomBidPrice + ", ");
-        tradeMsg.append(tradeMsgFields.get(3) + " : " + getRandomNumberBetweenTwoNumbers("1000","50000") + ", ");
-        tradeMsg.append(tradeMsgFields.get(4) + " : " + randomBidPrice++ + ", ");
-        tradeMsg.append(tradeMsgFields.get(5) + " : " + getRandomNumberBetweenTwoNumbers("1000","50000") + ", ");
-        tradeMsg.append(tradeMsgFields.get(6) + " : " + entry.get(3) + ", ");
-        tradeMsg.append(tradeMsgFields.get(7) + " : " + entry.get(3));
-
-        return tradeMsg.toString();
     }
 
     private static List<String> buildListOfSymbolExchangeAndPrice(String symbol, String low, String high, String exchange) {

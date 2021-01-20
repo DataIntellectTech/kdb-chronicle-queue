@@ -19,6 +19,8 @@ import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+
 @Component
 @Endpoint(id = "status")
 public class ChronicleKdbAdapter {
@@ -32,13 +34,15 @@ public class ChronicleKdbAdapter {
     @Value("${adapter.tailerName}")
     private String tailerName;
 
+    @Value("${adapter.messageType}")
+    private String messageType;
+
     @Value("${kdb.destination}")
     private String kdbDestination;
 
     @Value("${kdb.destination.function}")
     private String kdbDestinationFunction;
 
-    //private String chronicleQueueSource="";
     boolean keepRunning=true;
     long lastIndex = 0L;
 
@@ -57,13 +61,12 @@ public class ChronicleKdbAdapter {
         private final String message;
     }
 
-
     public void tidyUp(){
 
         keepRunning=false;
 
-        //kdb tidy up?
-        //Chronicle tidy up?
+        //TO DO kdb tidy up?
+        //TO DO Chronicle tidy up?
 
         LOG.info("Resources cleaned up");
     }
@@ -85,19 +88,20 @@ public class ChronicleKdbAdapter {
 
         while (keepRunning) {
 
-            tailer.readDocument(q -> q.read("quote")
+            // Only read messages of type messageType
+            tailer.readDocument(q -> q.read(messageType)
                     .marshallable(
                             m -> {
 
                                 // 3. read message data ( -> chronicle obj)
 
                                 ChronicleQuoteMsg quote = new ChronicleQuoteMsgBuilder()
-                                        .setTime(m.read("time").text())
+                                        .setTime(m.read("time").dateTime())
                                         .setSym(m.read("sym").text())
-                                        .setBid(m.read("bid").text())
-                                        .setBsize(m.read("bsize").text())
-                                        .setAsk(m.read("ask").text())
-                                        .setAssize(m.read("assize").text())
+                                        .setBid(m.read("bid").float64())
+                                        .setBsize(m.read("bsize").float64())
+                                        .setAsk(m.read("ask").float64())
+                                        .setAssize(m.read("assize").float64())
                                         .setBex(m.read("bex").text())
                                         .setAex(m.read("aex").text())
                                         .build();

@@ -4,27 +4,29 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @NoArgsConstructor
 public class ChronicleQuoteMsg implements AdapterMessage{
 
-    private String time;
+    private LocalDateTime time;
     private String sym;
-    private String bid;
-    private String bsize;
-    private String ask;
-    private String assize;
+    private double bid;
+    private double bsize;
+    private double ask;
+    private double assize;
     private String bex;
     private String aex;
 
-    public ChronicleQuoteMsg(String time, String sym, String bid, String bsize, String ask, String assize, String bex, String aex) {
+    public ChronicleQuoteMsg(LocalDateTime time, String sym, double bid, double bsize, double ask, double assize, String bex, String aex) {
         this.time = time;
         this.sym = sym;
-        this.bid = bid + 'f';
-        this.bsize = bsize + 'f';
-        this.ask = ask + 'f';
-        this.assize = assize + 'f';
+        this.bid = bid;
+        this.bsize = bsize;
+        this.ask = ask;
+        this.assize = assize;
         this.bex = bex;
         this.aex = aex;
     }
