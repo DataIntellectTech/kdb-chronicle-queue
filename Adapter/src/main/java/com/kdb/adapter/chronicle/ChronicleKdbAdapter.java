@@ -4,6 +4,7 @@ import com.kdb.adapter.mapper.SourceToDestinationMapper;
 import com.kdb.adapter.messages.ChronicleQuoteMsg;
 import com.kdb.adapter.kdb.KdbConnector;
 import com.kdb.adapter.messages.ChronicleQuoteMsgBuilder;
+import com.kdb.adapter.messages.KdbEnvelope;
 import com.kdb.adapter.messages.KdbMessage;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.Timer;
 
 @Component
 @Endpoint(id = "status")
@@ -43,8 +45,16 @@ public class ChronicleKdbAdapter {
     @Value("${kdb.destination.function}")
     private String kdbDestinationFunction;
 
-    boolean keepRunning=true;
-    long lastIndex = 0L;
+    @Value("${kdb.envelope.size: 20}")
+    private int kdbEnvelopeSize;
+
+    @Value("${kdb.envelope.waitTime: 100}")
+    private int kdbEnvelopeWaitTime;
+
+    private boolean keepRunning=true;
+    private long lastIndex = 0L;
+    private int howManyRead=0;
+    private Timer timer;
 
     private static Logger LOG = LoggerFactory.getLogger(ChronicleKdbAdapter.class);
 
@@ -86,6 +96,9 @@ public class ChronicleKdbAdapter {
         this.lastIndex = tailer.index();
         LOG.info("Tailer starting at index: " + lastIndex);
 
+        // Create new kdbEnvelope instance
+        KdbEnvelope envelope = new KdbEnvelope();
+
         while (keepRunning) {
 
             // Only read messages of type messageType
@@ -106,16 +119,35 @@ public class ChronicleKdbAdapter {
                                         .setAex(m.read("aex").text())
                                         .build();
 
+                                howManyRead+=1;
+
                                 // 4. Do mapping (chronicle obj -> kdb obj)
 
                                 KdbMessage kdbMsg = mapper.sourceToDestination(quote);
 
-                                // 5. Send data to destination ( -> kdb)
+                                quote = null;
 
-                                kdbConnector.saveMessage(kdbMsg, kdbDestination, kdbDestinationFunction);
+                                // 5. Add kdb msg to current kdb envelope
+
+                                envelope.addToEnvelope(kdbMsg);
+
+                                kdbMsg = null;
 
                                 this.lastIndex = tailer.index();
-                                LOG.info("Processed message @ index: " + lastIndex);
+                                LOG.debug("Read message @ index: " + lastIndex);
+
+                                // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
+
+                                if (howManyRead == kdbEnvelopeSize){
+
+                                    kdbConnector.saveMessage(envelope, kdbDestination, kdbDestinationFunction);
+
+                                    // 7. Re-set envelope
+
+                                    envelope.reset();
+                                    howManyRead=0;
+                                }
+
                             }
                             )
             );

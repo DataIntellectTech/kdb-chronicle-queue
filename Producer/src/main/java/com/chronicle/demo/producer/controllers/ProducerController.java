@@ -28,6 +28,9 @@ public class ProducerController {
     @Value("${producer.messageFrequency: 1000}")
     int messageFrequency;
 
+    @Value("${producer.messageLimit}")
+    int producerMessageLimit;
+
     private boolean startQuoteGenerator = false;
 
     @GetMapping(value = "/quoteLoader")
@@ -48,6 +51,8 @@ public class ProducerController {
 
     public void quoteGenerator() throws InterruptedException {
 
+        long numMsgsWritten=0L;
+
         List<List<String>> symbolsAndExchanges = new ArrayList<>();
         symbolsAndExchanges.add(buildListOfSymbolExchangeAndPrice("VOD.L", "150", "156", "XLON"));
         symbolsAndExchanges.add(buildListOfSymbolExchangeAndPrice("HEIN.AS", "100", "105", "XAMS"));
@@ -56,9 +61,7 @@ public class ProducerController {
         SingleChronicleQueue queue = SingleChronicleQueueBuilder.binary(quoteQueuePath).build();;
         ExcerptAppender appender = queue.acquireAppender();
 
-        long numMsgsWritten=0L;
-
-        while (startQuoteGenerator) {
+        while (startQuoteGenerator && (producerMessageLimit == 0 || numMsgsWritten < producerMessageLimit) ) {
             Thread.sleep(messageFrequency);
             List<String> entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
             int randomBidPrice = getRandomNumberBetweenTwoNumbers(entry.get(1),entry.get(2));
