@@ -71,12 +71,12 @@ public class KdbConnector {
             } else {
                 LOG.debug("*** Attempting to reconnect to Kdb server");
                 kdbConnection = new c(kdbHost, Integer.parseInt(kdbPort), kdbLogin);
-                Thread.sleep(5000);
+                //Thread.sleep(5000);
             }
         } catch (Exception e) {
             LOG.error("*** Encountered error in method maintainConnection: " + e.getMessage());
             kdbConnection = null;
-            Thread.sleep(5000);
+            //Thread.sleep(5000);
         }
     }
 
@@ -100,7 +100,7 @@ public class KdbConnector {
             }
         }
         catch(Exception ex){
-            System.out.println("Problem saving message data " + ex.toString());
+            LOG.error("Problem saving message data " + ex.toString());
         }
     }
 
@@ -108,7 +108,7 @@ public class KdbConnector {
         try {
             if (kdbConnectionEnabled) {
 
-                maintainKdbConnection();
+                //maintainKdbConnection();
 
                 // Merge kdbMessage data with configured destination table and method to create valid kdb syntax
                 kdbConnection.ks(kdbMethod, destinationTable, kdbEnvelope.toObjectArray());
@@ -117,7 +117,17 @@ public class KdbConnector {
             }
         }
         catch(Exception ex){
-            System.out.println("Problem saving message data " + ex.toString());
+            // try again..
+            try {
+                maintainKdbConnection();
+                // Merge kdbMessage data with configured destination table and method to create valid kdb syntax
+                kdbConnection.ks(kdbMethod, destinationTable, kdbEnvelope.toObjectArray());
+
+                LOG.info("*** Persisted envelope (" + kdbEnvelope.getEnvelopeDepth() + " messages) to kdb+");
+            }
+            catch(Exception exc){
+                LOG.error("Problem saving message data " + exc.toString());
+            }
         }
     }
 

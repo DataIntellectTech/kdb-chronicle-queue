@@ -6,6 +6,7 @@ import com.kdb.adapter.kdb.KdbConnector;
 import com.kdb.adapter.messages.ChronicleQuoteMsgBuilder;
 import com.kdb.adapter.messages.KdbEnvelope;
 import com.kdb.adapter.messages.KdbMessage;
+import com.kdb.adapter.timer.AdapterTimer;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -22,6 +23,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Timer;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 
 @Component
 @Endpoint(id = "status")
@@ -48,13 +52,13 @@ public class ChronicleKdbAdapter {
     @Value("${kdb.envelope.size: 20}")
     private int kdbEnvelopeSize;
 
-    @Value("${kdb.envelope.waitTime: 100}")
-    private int kdbEnvelopeWaitTime;
+    @Value("${kdb.envelope.waitTime: 1000}")
+    private long kdbEnvelopeWaitTime;
 
     private boolean keepRunning=true;
     private long lastIndex = 0L;
     private int howManyRead=0;
-    private Timer timer;
+    Future<Boolean> tooLongSinceLastMsg;
 
     private static Logger LOG = LoggerFactory.getLogger(ChronicleKdbAdapter.class);
 
@@ -99,7 +103,25 @@ public class ChronicleKdbAdapter {
         // Create new kdbEnvelope instance
         KdbEnvelope envelope = new KdbEnvelope();
 
+        tooLongSinceLastMsg = new AdapterTimer().tooLongSinceLastMsg(kdbEnvelopeWaitTime);
+
         while (keepRunning) {
+
+            // Do some timer checks...
+
+            if (tooLongSinceLastMsg.isDone()) {
+                if (envelope.getEnvelopeDepth() > 0){
+                    LOG.debug("Waited too long with msgs to go; envelope size = " + envelope.getEnvelopeDepth());
+                    kdbConnector.saveMessage(envelope, kdbDestination, kdbDestinationFunction);
+
+                    // 7. Re-set envelope
+
+                    envelope.reset();
+                    howManyRead=0;
+                }
+            }
+
+            // Start queue work
 
             // Only read messages of type messageType
             tailer.readDocument(q -> q.read(messageType)
@@ -135,6 +157,11 @@ public class ChronicleKdbAdapter {
 
                                 this.lastIndex = tailer.index();
                                 LOG.debug("Read message @ index: " + lastIndex);
+
+                                // Start new timer ------------------------
+
+                                tooLongSinceLastMsg = null;
+                                tooLongSinceLastMsg = new AdapterTimer().tooLongSinceLastMsg(kdbEnvelopeWaitTime);
 
                                 // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
 

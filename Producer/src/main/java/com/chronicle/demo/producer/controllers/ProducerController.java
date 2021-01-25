@@ -62,7 +62,7 @@ public class ProducerController {
         ExcerptAppender appender = queue.acquireAppender();
 
         while (startQuoteGenerator && (producerMessageLimit == 0 || numMsgsWritten < producerMessageLimit) ) {
-            Thread.sleep(messageFrequency);
+            //Thread.sleep(messageFrequency);
             List<String> entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
             int randomBidPrice = getRandomNumberBetweenTwoNumbers(entry.get(1),entry.get(2));
 
