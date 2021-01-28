@@ -25,7 +25,21 @@ public class AdapterApplication implements CommandLineRunner {
 
 	@Override
 	public void run(String... args) {
-		adapter.processMessages();
+
+		int ret=0;
+		while (ret!=-1){
+			ret=adapter.processMessages();
+			try{
+				Thread.sleep(10000);
+			}
+			catch(InterruptedException ie){
+				LOG.error("Problem with sleep on no messages. Ending.");
+				break;
+			}
+		}
+
+		adapter.tidyUp();
+		System.exit(ret);
 	}
 
 	@PreDestroy

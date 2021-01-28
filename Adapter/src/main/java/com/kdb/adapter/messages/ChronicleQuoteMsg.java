@@ -37,4 +37,72 @@ public class ChronicleQuoteMsg implements AdapterMessage{
         return String.format("(%s;`%s;%s;%s;%s;%s;`%s;`%s)", this.time, this.sym, this.bid, this.bsize, this.ask, this.assize, this.bex, this.aex);
     }
 
+    public static class ChronicleQuoteMsgBuilder{
+
+        private LocalDateTime time;
+        private String sym;
+        private double bid;
+        private double bsize;
+        private double ask;
+        private double assize;
+        private String bex;
+        private String aex;
+
+
+        public ChronicleQuoteMsgBuilder withTime(LocalDateTime time) {
+            this.time = time;
+            return this;
+        }
+
+        public ChronicleQuoteMsgBuilder withSym(String sym) {
+            this.sym = sym;
+            return this;
+        }
+
+        public ChronicleQuoteMsgBuilder withBid(double bid) {
+            this.bid = bid;
+            return this;
+        }
+
+        public ChronicleQuoteMsgBuilder withBsize(double bsize) {
+            this.bsize = bsize;
+            return this;
+        }
+
+        public ChronicleQuoteMsgBuilder withAsk(double ask) {
+            this.ask = ask;
+            return this;
+        }
+
+        public ChronicleQuoteMsgBuilder withAssize(double assize) {
+            this.assize = assize;
+            return this;
+        }
+
+        public ChronicleQuoteMsgBuilder withBex(String bex) {
+            this.bex = bex;
+            return this;
+        }
+
+        public ChronicleQuoteMsgBuilder withAex(String aex) {
+            this.aex = aex;
+            return this;
+        }
+
+        public ChronicleQuoteMsg build() {
+            ChronicleQuoteMsg quoteMsg = new ChronicleQuoteMsg();
+            quoteMsg.time = this.time;
+            quoteMsg.sym = this.sym;
+            quoteMsg.bid = this.bid;
+            quoteMsg.bsize = this.bsize;
+            quoteMsg.ask = this.ask;
+            quoteMsg.assize = this.assize;
+            quoteMsg.bex = this.bex;
+            quoteMsg.aex = this.aex;
+            return quoteMsg;
+        }
+
+    }
+
+
 }

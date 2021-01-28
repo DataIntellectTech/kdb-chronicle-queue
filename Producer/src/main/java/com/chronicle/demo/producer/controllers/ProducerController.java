@@ -4,14 +4,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
-import java.util.logging.Logger;
-
+import java.util.function.BinaryOperator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
@@ -20,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class ProducerController {
 
-    private final Logger LOG = Logger.getLogger(this.getClass().getName());
+    private static Logger LOG = LoggerFactory.getLogger(ProducerController.class);
 
     @Value("${chronicle.quote.queue}")
     String quoteQueuePath;
@@ -61,10 +60,13 @@ public class ProducerController {
         SingleChronicleQueue queue = SingleChronicleQueueBuilder.binary(quoteQueuePath).build();;
         ExcerptAppender appender = queue.acquireAppender();
 
+        long start = System.nanoTime();
+
         while (startQuoteGenerator && (producerMessageLimit == 0 || numMsgsWritten < producerMessageLimit) ) {
             //Thread.sleep(messageFrequency);
             List<String> entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
-            int randomBidPrice = getRandomNumberBetweenTwoNumbers(entry.get(1),entry.get(2));
+            int randomBidPrice = getRandomIntFromRange.apply(Integer.parseInt(entry.get(1)),Integer.parseInt(entry.get(2)));
+            int randomAskPrice = getRandomIntFromRange.apply(Integer.parseInt(entry.get(1)),Integer.parseInt(entry.get(2)));
 
             // Quote data fields...
             // time : 2020.01.24+14:00:16.083Z
@@ -80,17 +82,20 @@ public class ProducerController {
                     m -> m.write("time").dateTime(LocalDateTime.now())
                             .write("sym").text(entry.get(0))
                             .write("bid").float64(randomBidPrice)
-                            .write("bsize").float64(getRandomNumberBetweenTwoNumbers("1000","50000"))
-                            .write("ask").float64(randomBidPrice)
-                            .write("assize").float64(getRandomNumberBetweenTwoNumbers("1000","50000"))
+                            .write("bsize").float64(getRandomIntFromRange.apply(1000,50000))
+                            .write("ask").float64(randomAskPrice)
+                            .write("assize").float64(getRandomIntFromRange.apply(1000,50000))
                             .write("bex").text(entry.get(3))
                             .write("aex").text(entry.get(3))
             ));
 
             long index = appender.lastIndexAppended();
             numMsgsWritten++;
-            LOG.info("*** Quote Message written to index ["+ index +"] / (" + numMsgsWritten + " written)");
+            LOG.debug("*** Quote Message written to index ["+ index +"] / (" + numMsgsWritten + " written)");
         }
+
+        long finish = System.nanoTime() - start;
+        LOG.info("TIMING: Added "+ producerMessageLimit + " messages (up to index: " + appender.lastIndexAppended() + ") in " + finish / 1e9 + " seconds");
 
         queue.close();
 
@@ -106,10 +111,9 @@ public class ProducerController {
         return items;
     }
 
-    private static int getRandomNumberBetweenTwoNumbers(String low, String high) {
-        Random r = new Random();
-
-        return r.nextInt(Integer.parseInt(high)-Integer.parseInt(low)) + Integer.parseInt(low);
-    }
+    BinaryOperator<Integer> getRandomIntFromRange = (x, y) -> {
+        Random random = new Random();
+        return random.nextInt(y - x) + x;
+    };
 
 }

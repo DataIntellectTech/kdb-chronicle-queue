@@ -1,7 +1,11 @@
 package com.kdb.adapter.messages;
 
+import com.kdb.adapter.chronicle.ChronicleKdbAdapter;
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -12,6 +16,7 @@ public class KdbEnvelope implements AdapterMessage {
 
     private Object[] envelope;
     private int envelopeDepth;
+    private long firstIndex;
     private Timestamp[] chrontime;
     private String[] sym;
     private double[] bid;
@@ -21,9 +26,12 @@ public class KdbEnvelope implements AdapterMessage {
     private String[] bex;
     private String[] aex;
 
+    private static Logger LOG = LoggerFactory.getLogger(KdbEnvelope.class);
+
     public KdbEnvelope(){
         envelope = new Object[]{};
         envelopeDepth = 0;
+        firstIndex=-1L;
         chrontime = new Timestamp[]{};
         sym = new String[]{};
         bid = new double[]{};
@@ -47,6 +55,7 @@ public class KdbEnvelope implements AdapterMessage {
 
         envelope = new Object[]{};
         envelopeDepth = 0;
+        firstIndex=-1L;
         chrontime = new Timestamp[]{};
         sym = new String[]{};
         bid = new double[]{};
@@ -75,7 +84,7 @@ public class KdbEnvelope implements AdapterMessage {
         return destArray;
     }
 
-    public void addToEnvelope(KdbMessage kdbMessage){
+    public void addToEnvelope(KdbMessage kdbMessage, Long index){
 
         chrontime = addElement(chrontime, Timestamp.valueOf(kdbMessage.getTime()));
         sym = addElement(sym, kdbMessage.getSym());
@@ -85,6 +94,10 @@ public class KdbEnvelope implements AdapterMessage {
         aSize = addElement(aSize, kdbMessage.getAssize());
         bex = addElement(bex, kdbMessage.getBex());
         aex = addElement(aex, kdbMessage.getAex());
+
+        if(firstIndex == -1L){
+            firstIndex = index;
+        }
 
         envelopeDepth++;
 
@@ -96,7 +109,10 @@ public class KdbEnvelope implements AdapterMessage {
     }
 
     public Object[] toObjectArray() {
+        long start = System.nanoTime();
         envelope = new Object[] {chrontime, sym, bid, bSize, ask, aSize, bex, aex};
+        long finish = System.nanoTime() - start;
+        LOG.trace("TIMING: kdbEnvelope.toObjectArray() " + finish / 1e9 + " seconds");
         return envelope;
     }
 }

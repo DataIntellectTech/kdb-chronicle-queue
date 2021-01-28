@@ -40,16 +40,14 @@ public class KdbConnector {
         while (!connectedToKdb && kdbConnectionEnabled) {
             try {
                 if (null != kdbConnection){
-                    testConnectionAndLogResult("*** Currently connected to Kdb server");
+                    testConnection("*** Currently connected to Kdb server");
                 } else {
                     LOG.debug("*** Attempting to connect to Kdb server");
                     kdbConnection = new c(kdbHost, Integer.parseInt(kdbPort), kdbLogin);
-                    Thread.sleep(5000);
                 }
             } catch (Exception e) {
                 LOG.error("*** Encountered error in method connectToKdbServer: " + e.getMessage());
                 kdbConnection = null;
-                Thread.sleep(5000);
             }
         }
     }
@@ -64,26 +62,21 @@ public class KdbConnector {
         }
     }
 
-    public void maintainKdbConnection() throws InterruptedException {
-        try {
-            if (null != kdbConnection){
-                testConnectionAndLogResult("*** Still connected to Kdb server");
-            } else {
-                LOG.debug("*** Attempting to reconnect to Kdb server");
-                kdbConnection = new c(kdbHost, Integer.parseInt(kdbPort), kdbLogin);
-                //Thread.sleep(5000);
-            }
-        } catch (Exception e) {
-            LOG.error("*** Encountered error in method maintainConnection: " + e.getMessage());
-            kdbConnection = null;
-            //Thread.sleep(5000);
+    public void maintainKdbConnection() throws c.KException, IOException {
+
+        if (kdbConnection != null){
+            testConnection("*** Still connected to Kdb server");
+        }
+        else {
+            LOG.debug("*** Attempting to reconnect to Kdb server");
+            kdbConnection = new c(kdbHost, Integer.parseInt(kdbPort), kdbLogin);
         }
     }
 
-    private void testConnectionAndLogResult(String infoMsg) throws c.KException, IOException, InterruptedException {
-        Object queryResult = kdbConnection.k("quote");
+    private void testConnection(String infoMsg) throws c.KException, IOException {
+        Object queryResult = kdbConnection.k(kdbDestination);
         if (9 == ((c.Flip)queryResult).x.length) {
-            LOG.debug(infoMsg);
+            LOG.info(infoMsg);
             connectedToKdb = true;
         } else {
             connectedToKdb = false;
@@ -91,43 +84,27 @@ public class KdbConnector {
         }
     }
 
-    public void saveMessage(KdbMessage kdbMessage){
+    public boolean saveMessage(KdbEnvelope kdbEnvelope, String destinationTable, String kdbMethod){
         try {
-            if (kdbConnectionEnabled) {
-                maintainKdbConnection();
-                kdbConnection.ks(kdbMessage.toString());
-                LOG.debug("*** Persisted message to Kdb");
-            }
-        }
-        catch(Exception ex){
-            LOG.error("Problem saving message data " + ex.toString());
-        }
-    }
+            if (kdbConnectionEnabled){
 
-    public void saveMessage(KdbEnvelope kdbEnvelope, String destinationTable, String kdbMethod){
-        try {
-            if (kdbConnectionEnabled) {
-
-                //maintainKdbConnection();
+                if(kdbConnection == null) {
+                    maintainKdbConnection();
+                }
 
                 // Merge kdbMessage data with configured destination table and method to create valid kdb syntax
                 kdbConnection.ks(kdbMethod, destinationTable, kdbEnvelope.toObjectArray());
-
-                LOG.info("*** Persisted envelope (" + kdbEnvelope.getEnvelopeDepth() + " messages) to kdb+");
+                LOG.debug("*** Persisted envelope (" + kdbEnvelope.getEnvelopeDepth() + " messages) to kdb+");
+                return true;
+            }
+            else {
+                LOG.info("kdb connection not enabled. Check config!");
+                return false;
             }
         }
         catch(Exception ex){
-            // try again..
-            try {
-                maintainKdbConnection();
-                // Merge kdbMessage data with configured destination table and method to create valid kdb syntax
-                kdbConnection.ks(kdbMethod, destinationTable, kdbEnvelope.toObjectArray());
-
-                LOG.info("*** Persisted envelope (" + kdbEnvelope.getEnvelopeDepth() + " messages) to kdb+");
-            }
-            catch(Exception exc){
-                LOG.error("Problem saving message data " + exc.toString());
-            }
+            LOG.error(" Problem saving message data " + ex.toString());
+            return false;
         }
     }
 
