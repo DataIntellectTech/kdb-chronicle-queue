@@ -13,15 +13,15 @@ public class AdapterApplication {
 
   public static void main(String[] args) {
 
-    ChronicleKdbAdapter adapter = new ChronicleKdbAdapter();
+    final ChronicleKdbAdapter adapter = new ChronicleKdbAdapter();
 
-    PropertyFileLoader properties = new PropertyFileLoader();
+    final PropertyFileLoader properties = new PropertyFileLoader();
 
     try {
 
       // load config from  properties file
-      Properties props = properties.getPropValues("");
-      AdapterProperties adapterProperties = new AdapterProperties(props);
+      final Properties props = properties.getPropValues("");
+      final AdapterProperties adapterProperties = new AdapterProperties(props);
 
       int ret = 0;
       while (ret != -1) {

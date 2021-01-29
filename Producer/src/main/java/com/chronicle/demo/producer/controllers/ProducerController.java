@@ -37,10 +37,10 @@ public class ProducerController {
                               @RequestParam(value = "No. to generate", required=true)  int num,
                               @RequestParam(value = "Interval in millis", required=true)  long interval) {
         try {
-            if ("START".equals(command.toUpperCase())){
+            if ("START".equalsIgnoreCase(command)){
                 startQuoteGenerator = true;
                 quoteGenerator(num, interval);
-            } else if ("STOP".equals(command.toUpperCase())){
+            } else if ("STOP".equalsIgnoreCase(command)){
                 startQuoteGenerator = false;
             }
         } catch (Exception e) {
@@ -96,11 +96,11 @@ public class ProducerController {
 
             long index = appender.lastIndexAppended();
             numMsgsWritten++;
-            LOG.debug("*** Quote Message written to index ["+ index +"] / (" + numMsgsWritten + " written)");
+            LOG.debug("*** Quote Message written to index [{}] / ({} written)",index,numMsgsWritten);
         }
 
         long finish = System.nanoTime() - start;
-        LOG.info("TIMING: Added "+ numToGenerate + " messages (up to index: " + appender.lastIndexAppended() + ") in " + finish / 1e9 + " seconds");
+        LOG.info("TIMING: Added {} messages (up to index: {}) in {} seconds", numToGenerate, appender.lastIndexAppended(), finish / 1e9);
 
         queue.close();
 

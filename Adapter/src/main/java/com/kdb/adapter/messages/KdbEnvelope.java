@@ -1,13 +1,11 @@
 package com.kdb.adapter.messages;
 
-import com.kdb.adapter.chronicle.ChronicleKdbAdapter;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 
 @Getter
@@ -104,7 +102,7 @@ public class KdbEnvelope implements AdapterMessage {
 
   @Override
   public String toString() {
-    return envelope.toString();
+    return Arrays.toString(envelope);
   }
 
   public Object[] toObjectArray() {

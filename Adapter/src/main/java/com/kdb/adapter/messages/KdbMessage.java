@@ -40,8 +40,6 @@ public class KdbMessage implements AdapterMessage {
     String[] bex = new String[] {this.bex};
     String[] aex = new String[] {this.aex};
 
-    Object[] data = new Object[] {chrontime, sym, bid, bSize, ask, aSize, bex, aex};
-
-    return data;
+    return new Object[] {chrontime, sym, bid, bSize, ask, aSize, bex, aex};
   }
 }

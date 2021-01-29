@@ -17,21 +17,20 @@ import java.util.concurrent.Future;
 
 public class ChronicleKdbAdapter {
 
-    KdbConnector kdbConnector;
+    private KdbConnector kdbConnector;
     private boolean keepRunning = true;
-    private long tailerIndex = 0L;
-    private int howManyRead = 0;
-    private long howManyStored = 0L;
-    AdapterTimer adapterTimer;
-    Future<Boolean> tooLongSinceLastMsg;
+    private long tailerIndex;
+    private int howManyRead;
+    private long howManyStored;
+    private AdapterTimer adapterTimer;
+    private Future<Boolean> tooLongSinceLastMsg;
     private long start;
     private long finish;
-    SingleChronicleQueue queue = null;
-    ExcerptTailer tailer = null;
+    private SingleChronicleQueue queue;
+    private ExcerptTailer tailer;
     private static Logger LOG = LoggerFactory.getLogger(ChronicleKdbAdapter.class);
     private SourceToDestinationMapper mapper = Mappers.getMapper(SourceToDestinationMapper.class);
     private ChronicleQuoteMsg quote;
-
 
     public void tidyUp() {
 
@@ -62,7 +61,7 @@ public class ChronicleKdbAdapter {
         int ret = 0;
         keepRunning=true;
         howManyStored=0L;
-        long processStart = System.nanoTime();
+        final long processStart = System.nanoTime();
         long processFinish;
 
         try {
@@ -81,7 +80,7 @@ public class ChronicleKdbAdapter {
             LOG.info("Tailer starting at index: {}", tailerIndex);
 
             // Create new kdbEnvelope instance
-            KdbEnvelope envelope = new KdbEnvelope();
+            final KdbEnvelope envelope = new KdbEnvelope();
 
             adapterTimer = new AdapterTimer();
 
@@ -93,7 +92,7 @@ public class ChronicleKdbAdapter {
 
                 if (tooLongSinceLastMsg.isDone()) {
 
-                    int currEnvelopeDepth = envelope.getEnvelopeDepth();
+                    final int currEnvelopeDepth = envelope.getEnvelopeDepth();
 
                     if (currEnvelopeDepth > 0) {
 
@@ -197,7 +196,6 @@ public class ChronicleKdbAdapter {
 
         } catch (Exception ex) {
             LOG.error("Error in processMessages() -- {}", ex.toString());
-            ex.printStackTrace();
             return -1;
         } finally {
             try {
