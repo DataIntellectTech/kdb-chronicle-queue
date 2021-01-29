@@ -9,37 +9,35 @@ import java.util.Properties;
 
 public class AdapterApplication {
 
-	private static Logger LOG = LoggerFactory.getLogger(AdapterApplication.class);
+  private static Logger LOG = LoggerFactory.getLogger(AdapterApplication.class);
 
-	public static void main(String[] args) {
+  public static void main(String[] args) {
 
-		ChronicleKdbAdapter adapter = new ChronicleKdbAdapter();
+    ChronicleKdbAdapter adapter = new ChronicleKdbAdapter();
 
-		PropertyFileLoader properties = new PropertyFileLoader();
+    PropertyFileLoader properties = new PropertyFileLoader();
 
-		try {
+    try {
 
-			// load config from  properties file
-			Properties props = properties.getPropValues("");
-			AdapterProperties adapterProperties = new AdapterProperties(props);
+      // load config from  properties file
+      Properties props = properties.getPropValues("");
+      AdapterProperties adapterProperties = new AdapterProperties(props);
 
-			int ret = 0;
-			while (ret != -1) {
-				ret = adapter.processMessages(adapterProperties);
-				try {
-					Thread.sleep(adapterProperties.getAdapterWaitTimeWhenNoMsgs());
-				} catch (InterruptedException ie) {
-					LOG.error("Problem with sleep on no messages. Ending.");
-					break;
-				}
-			}
+      int ret = 0;
+      while (ret != -1) {
+        ret = adapter.processMessages(adapterProperties);
+        try {
+          Thread.sleep(adapterProperties.getAdapterWaitTimeWhenNoMsgs());
+        } catch (InterruptedException ie) {
+          LOG.error("Problem with sleep on no messages. Ending.");
+          break;
+        }
+      }
 
-			adapter.tidyUp();
-			System.exit(ret);
-		}
-		catch(Exception ex){
-			LOG.error("Problem running Adapter: "+ex.toString());
-		}
-	}
-
+      adapter.tidyUp();
+      System.exit(ret);
+    } catch (Exception ex) {
+      LOG.error("Problem running Adapter: " + ex.toString());
+    }
+  }
 }
