@@ -19,6 +19,9 @@ public class AdapterApplication implements CommandLineRunner {
 	@Autowired
 	ChronicleKdbAdapter adapter;
 
+	@Value("${adapter.waitTime.whenNoMsgs: 10000}")
+	long waitTimeWhenNoMsgs;
+
 	public static void main(String[] args) {
 		SpringApplication.run(AdapterApplication.class, args);
 	}
@@ -30,7 +33,7 @@ public class AdapterApplication implements CommandLineRunner {
 		while (ret!=-1){
 			ret=adapter.processMessages();
 			try{
-				Thread.sleep(10000);
+				Thread.sleep(waitTimeWhenNoMsgs);
 			}
 			catch(InterruptedException ie){
 				LOG.error("Problem with sleep on no messages. Ending.");

@@ -63,7 +63,10 @@ public class ProducerController {
         long start = System.nanoTime();
 
         while (startQuoteGenerator && (producerMessageLimit == 0 || numMsgsWritten < producerMessageLimit) ) {
-            //Thread.sleep(messageFrequency);
+            // Only pause if config > 0
+            if(messageFrequency>0){
+                Thread.sleep(messageFrequency);
+            }
             List<String> entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
             int randomBidPrice = getRandomIntFromRange.apply(Integer.parseInt(entry.get(1)),Integer.parseInt(entry.get(2)));
             int randomAskPrice = getRandomIntFromRange.apply(Integer.parseInt(entry.get(1)),Integer.parseInt(entry.get(2)));
