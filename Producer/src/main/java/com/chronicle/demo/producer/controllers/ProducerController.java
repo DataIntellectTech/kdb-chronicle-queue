@@ -33,11 +33,13 @@ public class ProducerController {
     private boolean startQuoteGenerator = false;
 
     @GetMapping(value = "/quoteLoader")
-    public String quoteLoader(@RequestParam(value = "Command: start/stop", required=true)  String command) {
+    public String quoteLoader(@RequestParam(value = "Command: start/stop", required=true)  String command,
+                              @RequestParam(value = "No. to generate", required=true)  int num,
+                              @RequestParam(value = "Interval in millis", required=true)  long interval) {
         try {
             if ("START".equals(command.toUpperCase())){
                 startQuoteGenerator = true;
-                quoteGenerator();
+                quoteGenerator(num, interval);
             } else if ("STOP".equals(command.toUpperCase())){
                 startQuoteGenerator = false;
             }
@@ -48,7 +50,7 @@ public class ProducerController {
         return ("*** Successfully executed query");
     }
 
-    public void quoteGenerator() throws InterruptedException {
+    public void quoteGenerator(int numToGenerate, long interval) throws InterruptedException {
 
         long numMsgsWritten=0L;
 
@@ -62,10 +64,10 @@ public class ProducerController {
 
         long start = System.nanoTime();
 
-        while (startQuoteGenerator && (producerMessageLimit == 0 || numMsgsWritten < producerMessageLimit) ) {
+        while (startQuoteGenerator && (numToGenerate == 0 || numMsgsWritten < numToGenerate) ) {
             // Only pause if config > 0
-            if(messageFrequency>0){
-                Thread.sleep(messageFrequency);
+            if(interval>0){
+                Thread.sleep(interval);
             }
             List<String> entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
             int randomBidPrice = getRandomIntFromRange.apply(Integer.parseInt(entry.get(1)),Integer.parseInt(entry.get(2)));
@@ -98,7 +100,7 @@ public class ProducerController {
         }
 
         long finish = System.nanoTime() - start;
-        LOG.info("TIMING: Added "+ producerMessageLimit + " messages (up to index: " + appender.lastIndexAppended() + ") in " + finish / 1e9 + " seconds");
+        LOG.info("TIMING: Added "+ numToGenerate + " messages (up to index: " + appender.lastIndexAppended() + ") in " + finish / 1e9 + " seconds");
 
         queue.close();
 

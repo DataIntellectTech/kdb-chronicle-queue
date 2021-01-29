@@ -6,49 +6,18 @@ import com.kdb.adapter.kdb.KdbConnector;
 import com.kdb.adapter.messages.KdbEnvelope;
 import com.kdb.adapter.messages.KdbMessage;
 import com.kdb.adapter.timer.AdapterTimer;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import com.kdb.adapter.utils.AdapterProperties;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import org.mapstruct.factory.Mappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
-import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
-import org.springframework.stereotype.Component;
 import java.util.concurrent.Future;
 
-@Component
-@Endpoint(id = "status")
 public class ChronicleKdbAdapter {
 
-    @Autowired
     KdbConnector kdbConnector;
-
-    @Value("${chronicle.source}")
-    private String chronicleQueueSource;
-
-    @Value("${adapter.tailerName}")
-    private String tailerName;
-
-    @Value("${adapter.messageType}")
-    private String messageType;
-
-    @Value("${kdb.destination}")
-    private String kdbDestination;
-
-    @Value("${kdb.destination.function}")
-    private String kdbDestinationFunction;
-
-    @Value("${kdb.envelope.size: 20}")
-    private int kdbEnvelopeSize;
-
-    @Value("${kdb.envelope.waitTime: 1000}")
-    private long kdbEnvelopeWaitTime;
-
     private boolean keepRunning = true;
     private long tailerIndex = 0L;
     private int howManyRead = 0;
@@ -63,16 +32,6 @@ public class ChronicleKdbAdapter {
     private SourceToDestinationMapper mapper = Mappers.getMapper(SourceToDestinationMapper.class);
     private ChronicleQuoteMsg quote;
 
-    @ReadOperation
-    public Message read() {
-        return new Message(String.format("Adapter info: Tailer [%s] processing queue [%s] writing to KDB [%s] Last message index [%s]", tailerName, chronicleQueueSource, kdbDestination, tailerIndex));
-    }
-
-    @Getter
-    @RequiredArgsConstructor
-    public static class Message {
-        private final String message;
-    }
 
     public void tidyUp() {
 
@@ -80,14 +39,11 @@ public class ChronicleKdbAdapter {
 
         try {
 
-            //TO DO kdb tidy up?
             if (kdbConnector != null) {
                 kdbConnector.closeConnection();
             }
 
-            //TO DO Chronicle tidy up?
             if (tailer != null) {
-                //tailer.readingDocument().close();
                 tailer.close();
             }
             if (queue != null) {
@@ -96,16 +52,18 @@ public class ChronicleKdbAdapter {
         }
         catch(Exception e){} //Can ignore anything at this stage...
 
-        LOG.info("Resources cleaned up");
+        LOG.debug("Resources cleaned up");
     }
 
-    public int processMessages() {
+    public int processMessages(AdapterProperties adapterProperties) {
         // ret = 0 -- all ok but nothing (left) to process
         // ret = -1 -- problem running
 
         int ret = 0;
         keepRunning=true;
         howManyStored=0L;
+        long processStart = System.nanoTime();
+        long processFinish;
 
         try {
 
@@ -113,21 +71,21 @@ public class ChronicleKdbAdapter {
 
             // 1. Connect to Chronicle Queue source
 
-            queue = SingleChronicleQueueBuilder.binary(chronicleQueueSource).build();
+            queue = SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
 
             // 2. Create "tailer" to listen for messages
 
-            tailer = queue.createTailer(tailerName);
+            tailer = queue.createTailer(adapterProperties.getAdapterTailerName());
 
             tailerIndex = tailer.index();
-            LOG.info("Tailer starting at index: " + tailerIndex);
+            LOG.info("Tailer starting at index: {}", tailerIndex);
 
             // Create new kdbEnvelope instance
             KdbEnvelope envelope = new KdbEnvelope();
 
             adapterTimer = new AdapterTimer();
 
-            tooLongSinceLastMsg = adapterTimer.tooLongSinceLastMsg(kdbEnvelopeWaitTime);
+            tooLongSinceLastMsg = adapterTimer.tooLongSinceLastMsg(adapterProperties.getKdbEnvelopeWaitTime());
 
             while (keepRunning) {
 
@@ -135,17 +93,16 @@ public class ChronicleKdbAdapter {
 
                 if (tooLongSinceLastMsg.isDone()) {
 
-                    int currEnvelopeDepth=envelope.getEnvelopeDepth();
+                    int currEnvelopeDepth = envelope.getEnvelopeDepth();
 
                     if (currEnvelopeDepth > 0) {
 
-                        LOG.debug("Waited too long with msgs to go; envelope size = " + envelope.getEnvelopeDepth());
+                        LOG.debug("Waited too long with msgs to go; envelope size = {}", envelope.getEnvelopeDepth());
 
-                        if (saveCurrentEnvelope(envelope)){
-                            howManyStored+=currEnvelopeDepth;
-                            keepRunning=true;
-                        }
-                        else{
+                        if (saveCurrentEnvelope(adapterProperties, envelope)) {
+                            howManyStored += currEnvelopeDepth;
+                            keepRunning = true;
+                        } else {
                             ret = -1;
                             keepRunning = false;
                             break;
@@ -157,13 +114,12 @@ public class ChronicleKdbAdapter {
                         keepRunning = false;
                         break;
                     }
-
                 }
 
                 // Start "normal" queue processing work...
 
                 // Only read messages of type messageType e.g. "quote"
-                tailer.readDocument(q -> q.read(messageType)
+                tailer.readDocument(q -> q.read(adapterProperties.getAdapterMessageType())
                         .marshallable(
                                 m -> {
 
@@ -184,10 +140,10 @@ public class ChronicleKdbAdapter {
                                             .build();
 
                                     finish = System.nanoTime() - start;
-                                    LOG.trace("TIMING: msg -> ChronMsg obj in " + finish / 1e9 + " seconds");
+                                    LOG.trace("TIMING: msg -> ChronMsg obj in {} seconds", finish / 1e9);
 
                                     tailerIndex = tailer.index();
-                                    LOG.debug("Read message @ index: " + tailerIndex);
+                                    LOG.debug("Read message @ index: {}", tailerIndex);
 
                                     howManyRead++;
 
@@ -198,7 +154,7 @@ public class ChronicleKdbAdapter {
                                     KdbMessage kdbMsg = mapper.sourceToDestination(quote);
 
                                     finish = System.nanoTime() - start;
-                                    LOG.trace("TIMING: mapped msg -> kdbMsg obj in " + finish / 1e9 + " seconds");
+                                    LOG.trace("TIMING: mapped msg -> kdbMsg obj in {} seconds", finish / 1e9);
 
                                     quote = null;
 
@@ -209,21 +165,21 @@ public class ChronicleKdbAdapter {
                                     envelope.addToEnvelope(kdbMsg, tailerIndex);
 
                                     finish = System.nanoTime() - start;
-                                    LOG.trace("TIMING: Added msg -> envelope obj in " + finish / 1e9 + " seconds");
+                                    LOG.trace("TIMING: Added msg -> envelope obj in {} seconds", finish / 1e9);
 
                                     kdbMsg = null;
 
-                                    // Start new timer ------------------------
+                                    // Cancel & Start new timer ------------------------
 
-                                    tooLongSinceLastMsg.cancel(false); // = null;
-                                    tooLongSinceLastMsg = adapterTimer.tooLongSinceLastMsg(kdbEnvelopeWaitTime);
+                                    tooLongSinceLastMsg.cancel(false);
+                                    tooLongSinceLastMsg = adapterTimer.tooLongSinceLastMsg(adapterProperties.getKdbEnvelopeWaitTime());
 
                                     // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
 
-                                    if (howManyRead == kdbEnvelopeSize) {
+                                    if (howManyRead == adapterProperties.getKdbEnvelopeSize()) {
 
-                                        if (saveCurrentEnvelope(envelope)){
-                                            howManyStored+=howManyRead;
+                                        if (saveCurrentEnvelope(adapterProperties, envelope)){
+                                            howManyStored+=adapterProperties.getKdbEnvelopeSize();
                                             keepRunning=true;
                                         }
                                         else{
@@ -235,16 +191,17 @@ public class ChronicleKdbAdapter {
                         )
                 );
             }
-            LOG.info("Stopping Chronicle kdb Adapter. " + howManyStored + " msgs stored in this cycle.");
+            processFinish = System.nanoTime() - processStart;
+            LOG.info("Stopping Chronicle kdb Adapter. {} msgs stored in this cycle ({} seconds)", howManyStored, processFinish / 1e9);
             return ret;
 
         } catch (Exception ex) {
-            LOG.error("Error in processMessages() -- " + ex.toString());
+            LOG.error("Error in processMessages() -- {}", ex.toString());
+            ex.printStackTrace();
             return -1;
         } finally {
             try {
                 if (tailer != null) {
-                    //tailer.readingDocument().close();
                     tailer.close();
                 }
                 if (queue != null) {
@@ -255,16 +212,20 @@ public class ChronicleKdbAdapter {
         }
     }
 
-    private boolean saveCurrentEnvelope(KdbEnvelope envelope){
+    private boolean saveCurrentEnvelope(AdapterProperties adapterProperties, KdbEnvelope envelope){
 
         boolean retVal=true;
 
         start = System.nanoTime();
 
-        if (kdbConnector.saveMessage(envelope, kdbDestination, kdbDestinationFunction)) {
+        if(kdbConnector == null){
+            kdbConnector = new KdbConnector(adapterProperties);
+        }
+
+        if (kdbConnector.saveMessage(adapterProperties, envelope)) {
 
             finish = System.nanoTime() - start;
-            LOG.trace("TIMING: Stored " + howManyRead + " messages (up to index: " + tailerIndex + ") in " + finish / 1e9 + " seconds");
+            LOG.info("TIMING: Stored {} messages (up to index: {}) in {} seconds", howManyRead, tailerIndex, finish / 1e9);
 
             // 7. Envelope contents saved. Re-set envelope...
             envelope.reset();
@@ -272,7 +233,7 @@ public class ChronicleKdbAdapter {
         } else {
             LOG.info("Failed to save current envelope.");
             // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
-            LOG.info("Rolling Chronicle Tailer back to index: " + envelope.getFirstIndex());
+            LOG.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
             tailer.moveToIndex(envelope.getFirstIndex());
             retVal=false;
         }

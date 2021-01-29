@@ -112,7 +112,7 @@ public class KdbEnvelope implements AdapterMessage {
         long start = System.nanoTime();
         envelope = new Object[] {chrontime, sym, bid, bSize, ask, aSize, bex, aex};
         long finish = System.nanoTime() - start;
-        LOG.trace("TIMING: kdbEnvelope.toObjectArray() " + finish / 1e9 + " seconds");
+        LOG.trace("TIMING: kdbEnvelope.toObjectArray() {} seconds", finish / 1e9);
         return envelope;
     }
 }

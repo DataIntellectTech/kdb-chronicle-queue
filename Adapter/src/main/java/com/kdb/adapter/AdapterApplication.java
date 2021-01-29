@@ -1,53 +1,45 @@
 package com.kdb.adapter;
 
 import com.kdb.adapter.chronicle.ChronicleKdbAdapter;
+import com.kdb.adapter.utils.AdapterProperties;
+import com.kdb.adapter.utils.PropertyFileLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import java.util.Properties;
 
-import javax.annotation.PreDestroy;
-
-@SpringBootApplication(scanBasePackages = {"com.kdb.adapter"})
-public class AdapterApplication implements CommandLineRunner {
+public class AdapterApplication {
 
 	private static Logger LOG = LoggerFactory.getLogger(AdapterApplication.class);
 
-	@Autowired
-	ChronicleKdbAdapter adapter;
-
-	@Value("${adapter.waitTime.whenNoMsgs: 10000}")
-	long waitTimeWhenNoMsgs;
-
 	public static void main(String[] args) {
-		SpringApplication.run(AdapterApplication.class, args);
-	}
 
-	@Override
-	public void run(String... args) {
+		ChronicleKdbAdapter adapter = new ChronicleKdbAdapter();
 
-		int ret=0;
-		while (ret!=-1){
-			ret=adapter.processMessages();
-			try{
-				Thread.sleep(waitTimeWhenNoMsgs);
+		PropertyFileLoader properties = new PropertyFileLoader();
+
+		try {
+
+			// load config from  properties file
+			Properties props = properties.getPropValues("");
+			AdapterProperties adapterProperties = new AdapterProperties(props);
+
+			int ret = 0;
+			while (ret != -1) {
+				ret = adapter.processMessages(adapterProperties);
+				try {
+					Thread.sleep(adapterProperties.getAdapterWaitTimeWhenNoMsgs());
+				} catch (InterruptedException ie) {
+					LOG.error("Problem with sleep on no messages. Ending.");
+					break;
+				}
 			}
-			catch(InterruptedException ie){
-				LOG.error("Problem with sleep on no messages. Ending.");
-				break;
-			}
+
+			adapter.tidyUp();
+			System.exit(ret);
 		}
-
-		adapter.tidyUp();
-		System.exit(ret);
-	}
-
-	@PreDestroy
-	public void onExit(){
-		adapter.tidyUp();
+		catch(Exception ex){
+			LOG.error("Problem running Adapter: "+ex.toString());
+		}
 	}
 
 }
