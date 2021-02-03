@@ -20,24 +20,19 @@ public class AdapterApplication {
     try {
 
       // load config from  properties file
-      final Properties props = properties.getPropValues("");
+      final Properties props = properties.getPropValues(args.length > 0 ? args[1] : "application.properties");
       final AdapterProperties adapterProperties = new AdapterProperties(props);
 
       int ret = 0;
       while (ret != -1) {
         ret = adapter.processMessages(adapterProperties);
-        try {
-          Thread.sleep(adapterProperties.getAdapterWaitTimeWhenNoMsgs());
-        } catch (InterruptedException ie) {
-          LOG.error("Problem with sleep on no messages. Ending.");
-          break;
-        }
+        Thread.sleep(adapterProperties.getAdapterWaitTimeWhenNoMsgs());
       }
 
       adapter.tidyUp();
       System.exit(ret);
     } catch (Exception ex) {
-      LOG.error("Problem running Adapter: " + ex.toString());
+      LOG.error("Problem running Adapter: {}", ex.toString());
     }
   }
 }

@@ -4,6 +4,26 @@
 
 This memory mapped file is also used for exceptionally fast inter-process communication (IPC) without affecting your system performance. This is especially useful when there is a need to transfer large amounts of data, its ideal for transferring data between processes very quickly on the same server or across the network. There is no Garbage Collection (GC) as everything is done off heap.
 
+### Features
+
+* Low-latency, high-performance Java and C++ software
+* No data loss; stores every value instead of replacing them
+* No GC as everything is done off-heap
+* Persistence to disk through memory mapped files
+* IPC between Java processes or between threads in a Java process
+* Simple API for ease of use
+* Replay-ability of all your inputs and outputs
+* Concurrent writers across processes on the same machine
+* Embedded performance in all processes
+* Data is written synchronously to ensure no data is lost
+* Data is read less than a microsecond after it is written
+
+### How does it work?
+
+Chronicle uses a memory mapped file to continuously journal messages, Chronicle's file-based storage will slowly grow in size as more data is written to the queue, the size of the queue can exceed your available memory, you are only constrained by the amount of disk space you have on your server. Chronicle writes data directly into off-heap memory which is shared between java processes on the same server.
+
+Chronicle is very fast, it is able to write and read a message in just two microseconds with no garbage. Typically at the end of each day, you archive the queue and start the next day with a fresh empty queue.
+
 More info: https://chronicle.software/libraries/queue/
 
 ## What is kdb+ Time Series Database?
@@ -77,14 +97,13 @@ Quotes will then be written to the queue as a "self-describing message". E.g.:
 
 ## Adapter application
 
-The Adapter for our scenario has been built as a Java with Spring Boot (CommandLineRunner) application that builds out to a jar file.
+The Adapter for our scenario has been built as in Java and can be built out to a jar file.
+
 The application will implement the process above using vendor specific libraries (Chronicle and kdb+) as well as other 3rd party Open Source libraries.
 
 ### 1. Connect to data source i.e. Chronicle Queue
 
-When the application is started, use Chronicle Queue java library to connect to a queue.
-
-This library can be added to a maven project pom.xml file as a dependency:
+When the application is started, use Chronicle Queue java library to connect to a queue. This library can be added to a maven project pom.xml file as a dependency:
 
 	<dependency>
 		<groupId>net.openhft</groupId>
@@ -98,12 +117,14 @@ The data source / queue should be identified via an external properties file. Ch
 
 ### 2. Check queue for new messages
 
-Once connected to the data source, use a Chronicle Queue Tailer to read the queue and check for new messages of the configured "type". 
-The tailer should be named, based on configuration in an external properties file. 
+Once connected to the data source, use a Chronicle Queue Tailer to read the queue and check for new messages of the configured "type" (adapter.messageType). 
+The tailer should be named, based on configuration in an external properties file (adapter.tailerName). 
 The tailer should read forward from the last message read when re-started.
+When there are no messages to read, the adapter should stop for a configurable period of time (adapter.waitTime.whenNoMsgs).
 
 	adapter.tailerName=quoteTailer
 	adapter.messageType=quote
+	adapter.waitTime.whenNoMsgs=10000
 
 ### 3. Read message data ( -> chronicle obj)
 
@@ -135,11 +156,11 @@ Rather than send messages to kdb+ one at a time, it is more efficient to batch t
 
 The envelope size will be limited by another configuration parameter:
 
-	kdb.envelope.size=100
+	kdb.envelope.size=200
 
 As there may be occasions when an envelope may not be full, that will lead to messages having been read from the source queue being "stuck" in the Adapter. To get around this, a Timer will be used to track the amount of time between messages being added to the envelope. 
 
-	kdb.envelope.waitTime=100
+	kdb.envelope.waitTime=20
 	
 The parameter above will set the wait time and if that is exceeded, the current envelope will be sent to kdb+ and then reset.
 
@@ -180,26 +201,15 @@ the kdb message data is formatted as Object[] similar to this:
 
 ### Start the Producer
 
-Once running, the Producer component can be started and stopped via endpoints to allow some control and help testing. These can be accessed via the built-in Swagger page, directly with a url or directly through a tool like Postman. E.g.: 
+The Producer component in the repositry has been built to facilitate the generation of Quote messages on the Chronicl Queue. Once running, the Producer component can be started and stopped via endpoints to allow some control and help testing. These can be accessed via the built-in Swagger page, directly with a url or directly through a tool like Postman. E.g.: 
 
-*Start message production using http://localhost:9090/producer/quoteLoader?Command%3A%20start%2Fstop=start
-*Stop message production using http://localhost:9090/producer/quoteLoader?Command%3A%20start%2Fstop=stop
+*Send 10 messages at 0 milliseconds intervals (i.e. no wait in between) http://localhost:9090/producer/quoteLoader?Command%3A%20start%2Fstop=start&No.%20to%20generate=10&Interval%20in%20millis=0
+* If running a long generation process it can be stopped by sending -- http://localhost:9090/producer/quoteLoader?Command%3A%20start%2Fstop=stop&No.%20to%20generate=0&Interval%20in%20millis=0
 
 The Producer console showing messages being added to the queue:
 
-	2021-01-20 15:50:16.199  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187963] / (1 written)
-	2021-01-20 15:50:16.305  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187964] / (2 written)
-	2021-01-20 15:50:16.417  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187965] / (3 written)
-	2021-01-20 15:50:16.528  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187966] / (4 written)
-	2021-01-20 15:50:16.643  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187967] / (5 written)
-	2021-01-20 15:50:16.755  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187968] / (6 written)
-	2021-01-20 15:50:16.860  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187969] / (7 written)
-	2021-01-20 15:50:16.972  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187970] / (8 written)
-	2021-01-20 15:50:17.082  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187971] / (9 written)
-	2021-01-20 15:50:17.193  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187972] / (10 written)
-	2021-01-20 15:50:17.305  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187973] / (11 written)
-	2021-01-20 15:50:17.416  INFO 17636 --- [nio-9090-exec-8] c.c.d.p.controllers.ProducerController   : *** Quote Message written to index [80088255187974] / (12 written)
-	......
+	2021-02-03 17:14:57.723  INFO 48340 --- [nio-9090-exec-2] c.c.d.p.controllers.ProducerController   : TIMING: Added 10 messages (up to index: 80148384825735) in 0.0110204 seconds
+	2021-02-03 17:14:57.723  INFO 48340 --- [nio-9090-exec-2] c.c.d.p.controllers.ProducerController   : *** Successfully executed query
 
 ### Start kdb+ instance
 
@@ -226,48 +236,16 @@ Check that the quote table exists and is empty:
 Once started, the adapter will connect to the kdb+ database first and then the Chronicle queue.
 
 	....
-	2021-01-20 15:49:40.509  INFO 22676 --- [  restartedMain] net.openhft.chronicle.core.Jvm           : Chronicle core loaded from file:/C:/Users/MarkF/.m2/repository/net/openhft/chronicle-core/2.20.116/chronicle-core-2.20.116.jar
-	2021-01-20 15:49:40.712  WARN 22676 --- [  restartedMain] .ReflectionBasedByteBufferCleanerService : Make sure you have set the command line option "--illegal-access=permit --add-exports java.base/jdk.internal.ref=ALL-UNNAMED" to enable ReflectionBasedByteBufferCleanerService
-	2021-01-20 15:49:40.716  WARN 22676 --- [  restartedMain] net.openhft.chronicle.bytes.MappedFile   : Took 27 ms to add mapping for C:\ChronicleQueue\Producer\quote\metadata.cq4t
-	2021-01-20 15:49:41.149  INFO 22676 --- [  restartedMain] c.k.a.chronicle.ChronicleKdbAdapter      : Tailer starting at index: 80088255187963
-	2021-01-20 15:50:16.177  INFO 22676 --- [  restartedMain] com.kdb.adapter.kdb.KdbConnector         : *** Still connected to Kdb server
-	2021-01-20 15:50:16.179  INFO 22676 --- [  restartedMain] com.kdb.adapter.kdb.KdbConnector         : *** Persisted message to Kdb
-	2021-01-20 15:50:16.180  INFO 22676 --- [  restartedMain] c.k.a.chronicle.ChronicleKdbAdapter      : Processed message @ index: 80088255187963
-	2021-01-20 15:50:16.306  INFO 22676 --- [  restartedMain] com.kdb.adapter.kdb.KdbConnector         : *** Still connected to Kdb server
-	2021-01-20 15:50:16.307  INFO 22676 --- [  restartedMain] com.kdb.adapter.kdb.KdbConnector         : *** Persisted message to Kdb
-	2021-01-20 15:50:16.308  INFO 22676 --- [  restartedMain] c.k.a.chronicle.ChronicleKdbAdapter      : Processed message @ index: 80088255187964
-	2021-01-20 15:50:16.418  INFO 22676 --- [  restartedMain] com.kdb.adapter.kdb.KdbConnector         : *** Still connected to Kdb server
-	2021-01-20 15:50:16.418  INFO 22676 --- [  restartedMain] com.kdb.adapter.kdb.KdbConnector         : *** Persisted message to Kdb
-	2021-01-20 15:50:16.418  INFO 22676 --- [  restartedMain] c.k.a.chronicle.ChronicleKdbAdapter      : Processed message @ index: 80088255187965
-	2021-01-20 15:50:16.530  INFO 22676 --- [  restartedMain] com.kdb.adapter.kdb.KdbConnector         : *** Still connected to Kdb server
+	Feb 03, 2021 5:16:21 PM com.kdb.adapter.chronicle.ChronicleKdbAdapter processMessages INFO: Starting Chronicle kdb Adapter
+	Feb 03, 2021 5:16:21 PM com.kdb.adapter.chronicle.ChronicleKdbAdapter processMessages INFO: Tailer starting at index: 80148384825736
+	Feb 03, 2021 5:16:21 PM com.kdb.adapter.chronicle.ChronicleKdbAdapter saveCurrentEnvelope INFO: TIMING: Stored 10 messages (up to index: 80148384825745) in 0.0013226 seconds
+	Feb 03, 2021 5:16:21 PM com.kdb.adapter.chronicle.ChronicleKdbAdapter processMessages INFO: Stopping Chronicle kdb Adapter. 10 msgs stored in this cycle (0.083505101 seconds)
 	....
 
 Each message read is added to kdb+ and will show in the kdb+ console as follows:
 
 	....
-	received message: "quote"
-	received message: (".u.upd";`quote;(,2021.01.20D15:50:16.162380300;,`JUVE.MI;,1231f;,5596f;,123..
-	insert successful
-	received message: "quote"
-	received message: (".u.upd";`quote;(,2021.01.20D15:50:16.304377500;,`JUVE.MI;,1236f;,1756f;,123..
-	insert successful
-	received message: "quote"
-	received message: (".u.upd";`quote;(,2021.01.20D15:50:16.416378800;,`JUVE.MI;,1236f;,10074f;,12..
-	insert successful
-	received message: "quote"
-	received message: (".u.upd";`quote;(,2021.01.20D15:50:16.528382000;,`VOD.L;,153f;,4009f;,153f;,..
-	insert successful
-	received message: "quote"
-	received message: (".u.upd";`quote;(,2021.01.20D15:50:16.640377200;,`JUVE.MI;,1235f;,42974f;,12..
-	insert successful
-	received message: "quote"
-	received message: (".u.upd";`quote;(,2021.01.20D15:50:16.751386200;,`JUVE.MI;,1234f;,13624f;,12..
-	insert successful
-	received message: "quote"
-	received message: (".u.upd";`quote;(,2021.01.20D15:50:16.860383100;,`VOD.L;,153f;,22700f;,153f;..
-	insert successful
-	received message: "quote"
-	received message: (".u.upd";`quote;(,2021.01.20D15:50:16.971379100;,`HEIN.AS;,102f;,25877f;,102..
+	received message: (".u.upd";`quote;(2021.02.03D17:16:16.318827300 2021.02.03D17:16:16.318827300..
 	insert successful
 	....
 
@@ -276,46 +254,29 @@ A simple check of the quote table shows that the data has been added:
 	q)quote
 	time                          chrontime                     sym     bid  bsiz..
 	-----------------------------------------------------------------------------..
-	2021.01.20D15:50:16.201095000 2021.01.20D15:50:16.162380300 JUVE.MI 1231 5596..
-	2021.01.20D15:50:16.310367000 2021.01.20D15:50:16.304377500 JUVE.MI 1236 1756..
-	2021.01.20D15:50:16.419537000 2021.01.20D15:50:16.416378800 JUVE.MI 1236 1007..
-	2021.01.20D15:50:16.531943000 2021.01.20D15:50:16.528382000 VOD.L   153  4009..
-	2021.01.20D15:50:16.646396000 2021.01.20D15:50:16.640377200 JUVE.MI 1235 4297..
-	2021.01.20D15:50:16.755128000 2021.01.20D15:50:16.751386200 JUVE.MI 1234 1362..
-	2021.01.20D15:50:16.864050000 2021.01.20D15:50:16.860383100 VOD.L   153  2270..
-	2021.01.20D15:50:16.976238000 2021.01.20D15:50:16.971379100 HEIN.AS 102  2587..
-	2021.01.20D15:50:17.085610000 2021.01.20D15:50:17.082375700 HEIN.AS 101  2271..
-	2021.01.20D15:50:17.198911000 2021.01.20D15:50:17.193383600 VOD.L   151  3711..
-	2021.01.20D15:50:17.316188000 2021.01.20D15:50:17.305379200 HEIN.AS 103  8677..
-	2021.01.20D15:50:17.419329000 2021.01.20D15:50:17.416375700 VOD.L   151  3894..
-	2021.01.20D15:50:17.540995000 2021.01.20D15:50:17.535379900 VOD.L   153  2080..
-	2021.01.20D15:50:17.648976000 2021.01.20D15:50:17.644907400 HEIN.AS 102  4721..
-	2021.01.20D15:50:17.768347000 2021.01.20D15:50:17.760911300 JUVE.MI 1239 3485..
-	2021.01.20D15:50:17.882014000 2021.01.20D15:50:17.873906000 JUVE.MI 1237 5590..
-	2021.01.20D15:50:17.988313000 2021.01.20D15:50:17.983929900 VOD.L   154  6214..
-	2021.01.20D15:50:18.107047000 2021.01.20D15:50:18.099918800 HEIN.AS 102  4223..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.958331200 VOD.L   154  2661..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.962331600 VOD.L   152  1636..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.964324800 HEIN.AS 101  2706..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.964324800 HEIN.AS 101  3746..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.964324800 JUVE.MI 1232 2809..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.965327400 HEIN.AS 101  4875..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.965327400 HEIN.AS 100  1663..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.966337200 JUVE.MI 1238 3975..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.966337200 JUVE.MI 1232 4766..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:25.967731000 VOD.L   155  2874..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:38.124967100 HEIN.AS 102  2200..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:38.234965000 HEIN.AS 104  2516..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:38.344966400 VOD.L   153  2304..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:38.456509300 JUVE.MI 1230 4990..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:38.566501900 JUVE.MI 1238 3918..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:38.676502900 JUVE.MI 1237 2580..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:38.787779900 JUVE.MI 1237 2119..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:38.898779900 VOD.L   154  3414..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:39.010326700 JUVE.MI 1231 1613..
+	2021.02.03D17:16:01.757618000 2021.02.03D16:38:39.121323400 VOD.L   152  2283..
+	..
 
 NOTE: The "time" column is the inserted time kdb generated and the "chrontime" column is the timestamp value from each message generated by the Producer application.
-
-# Additional info
-
-The adapter application has some additional data availble that has been enabled using Spring Boot Actuator.
-
-## General Application status 
-
-This endpoint reports the state of the java application e.g. UP, and additional JVM info.
-
-	http://localhost:8080/adapter/health
-
-	{"status":"UP","components":{"diskSpace":{"status":"UP","details":{"total":255482392576,"free":28916776960,"threshold":10485760,"exists":true}},"ping":{"status":"UP"}}}
-	
-## Adapter specific information
-
-This endpoint is more specific information on the adapter instance itself. It reports the name of the Tailer, the queue being processed, the table in kdb+ being written to and the index (pointer in Chronicle Queue) of the last message read from the queue.
-
-	http://localhost:8080/adapter/status
-
-	{"message":"Adapter info: Tailer [quoteTailer] processing queue [C:\\ChronicleQueue\\Producer\\quote] writing to KDB [quote] Last message index [80066780334716]"}
 
 # Summary
 

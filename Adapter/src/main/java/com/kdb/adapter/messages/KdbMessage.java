@@ -31,15 +31,15 @@ public class KdbMessage implements AdapterMessage {
 
   public Object[] toObjectArray() {
 
-    Timestamp[] chrontime = new Timestamp[] {Timestamp.valueOf(this.time)};
-    String[] sym = new String[] {this.sym};
-    double[] bid = new double[] {this.bid};
-    double[] bSize = new double[] {this.bsize};
-    double[] ask = new double[] {this.ask};
-    double[] aSize = new double[] {this.assize};
-    String[] bex = new String[] {this.bex};
-    String[] aex = new String[] {this.aex};
+    Timestamp[] chrontimeArr = new Timestamp[] {Timestamp.valueOf(this.time)};
+    String[] symArr = new String[] {this.sym};
+    double[] bidArr = new double[] {this.bid};
+    double[] bSizeArr = new double[] {this.bsize};
+    double[] askArr = new double[] {this.ask};
+    double[] aSizeArr = new double[] {this.assize};
+    String[] bexArr = new String[] {this.bex};
+    String[] aexArr = new String[] {this.aex};
 
-    return new Object[] {chrontime, sym, bid, bSize, ask, aSize, bex, aex};
+    return new Object[] {chrontimeArr, symArr, bidArr, bSizeArr, askArr, aSizeArr, bexArr, aexArr};
   }
 }

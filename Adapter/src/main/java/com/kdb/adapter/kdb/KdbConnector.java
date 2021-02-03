@@ -9,12 +9,7 @@ public class KdbConnector {
 
   private static org.slf4j.Logger LOG = LoggerFactory.getLogger(KdbConnector.class.getName());
 
-  private String kdbHost;
-  private String kdbPort;
-  private String kdbLogin;
-  private String kdbDestination;
   private static c kdbConnection = null;
-  private boolean kdbConnectionEnabled;
   public boolean connectedToKdb = false;
 
   public KdbConnector(AdapterProperties adapterProperties) {

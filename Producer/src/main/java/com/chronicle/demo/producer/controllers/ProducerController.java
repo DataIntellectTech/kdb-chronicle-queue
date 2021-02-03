@@ -24,12 +24,6 @@ public class ProducerController {
     @Value("${chronicle.quote.queue}")
     String quoteQueuePath;
 
-    @Value("${producer.messageFrequency: 1000}")
-    int messageFrequency;
-
-    @Value("${producer.messageLimit}")
-    int producerMessageLimit;
-
     private boolean startQuoteGenerator = false;
 
     @GetMapping(value = "/quoteLoader")

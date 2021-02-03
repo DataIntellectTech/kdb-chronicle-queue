@@ -20,25 +20,6 @@ public class ChronicleQuoteMsg implements AdapterMessage {
   private String bex;
   private String aex;
 
-  public ChronicleQuoteMsg(
-      LocalDateTime time,
-      String sym,
-      double bid,
-      double bsize,
-      double ask,
-      double assize,
-      String bex,
-      String aex) {
-    this.time = time;
-    this.sym = sym;
-    this.bid = bid;
-    this.bsize = bsize;
-    this.ask = ask;
-    this.assize = assize;
-    this.bex = bex;
-    this.aex = aex;
-  }
-
   public String toString() {
     // Format chronicle part of message...
     // E.g. Return value (2020.12.01+15:06:27.333Z;`HEIN.AS;100;9014;100;24543;`XAMS;`XAMS)
