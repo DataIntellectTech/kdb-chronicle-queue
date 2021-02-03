@@ -6,13 +6,13 @@ import java.util.concurrent.Future;
 
 public class AdapterTimer {
 
-    private ExecutorService executor
-            = Executors.newSingleThreadExecutor();
+  private ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    public Future<Boolean> tooLongSinceLastMsg(long waitTime) {
-        return executor.submit(() -> {
-            Thread.sleep(waitTime);
-            return true;
+  public Future<Boolean> tooLongSinceLastMsg(long waitTime) {
+    return executor.submit(
+        () -> {
+          Thread.sleep(waitTime);
+          return true;
         });
-    }
+  }
 }

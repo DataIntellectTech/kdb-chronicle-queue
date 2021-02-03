@@ -24,21 +24,17 @@ public class ProducerController {
     @Value("${chronicle.quote.queue}")
     String quoteQueuePath;
 
-    @Value("${producer.messageFrequency: 1000}")
-    int messageFrequency;
-
-    @Value("${producer.messageLimit}")
-    int producerMessageLimit;
-
     private boolean startQuoteGenerator = false;
 
     @GetMapping(value = "/quoteLoader")
-    public String quoteLoader(@RequestParam(value = "Command: start/stop", required=true)  String command) {
+    public String quoteLoader(@RequestParam(value = "Command: start/stop", required=true)  String command,
+                              @RequestParam(value = "No. to generate", required=true)  int num,
+                              @RequestParam(value = "Interval in millis", required=true)  long interval) {
         try {
-            if ("START".equals(command.toUpperCase())){
+            if ("START".equalsIgnoreCase(command)){
                 startQuoteGenerator = true;
-                quoteGenerator();
-            } else if ("STOP".equals(command.toUpperCase())){
+                quoteGenerator(num, interval);
+            } else if ("STOP".equalsIgnoreCase(command)){
                 startQuoteGenerator = false;
             }
         } catch (Exception e) {
@@ -48,7 +44,7 @@ public class ProducerController {
         return ("*** Successfully executed query");
     }
 
-    public void quoteGenerator() throws InterruptedException {
+    public void quoteGenerator(int numToGenerate, long interval) throws InterruptedException {
 
         long numMsgsWritten=0L;
 
@@ -62,10 +58,10 @@ public class ProducerController {
 
         long start = System.nanoTime();
 
-        while (startQuoteGenerator && (producerMessageLimit == 0 || numMsgsWritten < producerMessageLimit) ) {
+        while (startQuoteGenerator && (numToGenerate == 0 || numMsgsWritten < numToGenerate) ) {
             // Only pause if config > 0
-            if(messageFrequency>0){
-                Thread.sleep(messageFrequency);
+            if(interval>0){
+                Thread.sleep(interval);
             }
             List<String> entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
             int randomBidPrice = getRandomIntFromRange.apply(Integer.parseInt(entry.get(1)),Integer.parseInt(entry.get(2)));
@@ -94,11 +90,11 @@ public class ProducerController {
 
             long index = appender.lastIndexAppended();
             numMsgsWritten++;
-            LOG.debug("*** Quote Message written to index ["+ index +"] / (" + numMsgsWritten + " written)");
+            LOG.debug("*** Quote Message written to index [{}] / ({} written)",index,numMsgsWritten);
         }
 
         long finish = System.nanoTime() - start;
-        LOG.info("TIMING: Added "+ producerMessageLimit + " messages (up to index: " + appender.lastIndexAppended() + ") in " + finish / 1e9 + " seconds");
+        LOG.info("TIMING: Added {} messages (up to index: {}) in {} seconds", numToGenerate, appender.lastIndexAppended(), finish / 1e9);
 
         queue.close();
 
