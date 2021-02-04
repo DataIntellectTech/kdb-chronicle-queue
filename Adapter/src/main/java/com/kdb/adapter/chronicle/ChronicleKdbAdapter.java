@@ -5,6 +5,7 @@ import com.kdb.adapter.messages.ChronicleQuoteMsg;
 import com.kdb.adapter.kdb.KdbConnector;
 import com.kdb.adapter.messages.KdbEnvelope;
 import com.kdb.adapter.messages.KdbMessage;
+import com.kdb.adapter.messages.KdbQuoteMessage;
 import com.kdb.adapter.timer.AdapterTimer;
 import com.kdb.adapter.utils.AdapterProperties;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -154,7 +155,7 @@ public class ChronicleKdbAdapter {
 
                           start = System.nanoTime();
 
-                          KdbMessage kdbMsg = mapper.sourceToDestination(quote);
+                          KdbQuoteMessage kdbQuoteMsg = mapper.sourceToDestination(quote);
 
                           finish = System.nanoTime() - start;
                           LOG.trace("TIMING: mapped msg -> kdbMsg obj in {} seconds", finish / 1e9);
@@ -165,13 +166,13 @@ public class ChronicleKdbAdapter {
 
                           start = System.nanoTime();
 
-                          envelope.addToEnvelope(kdbMsg, tailerIndex);
+                          envelope.addToEnvelope(kdbQuoteMsg, tailerIndex);
 
                           finish = System.nanoTime() - start;
                           LOG.trace(
                               "TIMING: Added msg -> envelope obj in {} seconds", finish / 1e9);
 
-                          kdbMsg = null;
+                          kdbQuoteMsg = null;
 
                           // Cancel & Start new timer ------------------------
 

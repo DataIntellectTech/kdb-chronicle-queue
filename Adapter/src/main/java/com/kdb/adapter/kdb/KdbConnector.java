@@ -15,16 +15,17 @@ public class KdbConnector {
   public KdbConnector(AdapterProperties adapterProperties) {
 
     try {
-      if (null != kdbConnection) {
-        testConnection(adapterProperties, "*** Currently connected to Kdb server");
-      } else {
-        LOG.debug("*** Attempting to connect to Kdb server");
-        kdbConnection =
-            new c(
-                adapterProperties.getKdbHost(),
-                adapterProperties.getKdbPort(),
-                adapterProperties.getKdbLogin());
-      }
+
+      LOG.debug("*** Attempting to connect to Kdb server");
+
+      kdbConnection =
+          new c(
+              adapterProperties.getKdbHost(),
+              adapterProperties.getKdbPort(),
+              adapterProperties.getKdbLogin());
+
+      connectedToKdb = testConnection(adapterProperties);
+
     } catch (Exception e) {
       LOG.error("*** Encountered constructing KdbConnector: {}", e.getMessage());
       kdbConnection = null;
@@ -43,9 +44,8 @@ public class KdbConnector {
   public void maintainKdbConnection(AdapterProperties adapterProperties)
       throws c.KException, IOException {
 
-    if (kdbConnection != null) {
-      testConnection(adapterProperties, "*** Still connected to Kdb server");
-    } else {
+    connectedToKdb = testConnection(adapterProperties);
+    if (!connectedToKdb) {
       LOG.debug("*** Attempting to reconnect to Kdb server");
       kdbConnection =
           new c(
@@ -55,23 +55,18 @@ public class KdbConnector {
     }
   }
 
-  private void testConnection(AdapterProperties adapterProperties, String infoMsg)
+  private boolean testConnection(AdapterProperties adapterProperties)
       throws c.KException, IOException {
-    Object queryResult = kdbConnection.k(adapterProperties.getKdbDestination());
-    if (9 == ((c.Flip) queryResult).x.length) {
-      LOG.info(infoMsg);
-      connectedToKdb = true;
-    } else {
-      connectedToKdb = false;
-      kdbConnection = null;
-    }
+    boolean result = false;
+    Object queryResult = kdbConnection.k("1+1");
+    return (queryResult.toString().equals("2")) ? true : false;
   }
 
   public boolean saveMessage(AdapterProperties adapterProperties, KdbEnvelope kdbEnvelope) {
     try {
       if (adapterProperties.isKdbConnectionEnabled()) {
 
-        if (kdbConnection == null) {
+        if (!connectedToKdb) {
           maintainKdbConnection(adapterProperties);
         }
 

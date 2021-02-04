@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ChronicleQuoteMsg implements AdapterMessage {
+public class ChronicleQuoteMsg implements ChronicleMessage {
 
   private LocalDateTime time;
   private String sym;
