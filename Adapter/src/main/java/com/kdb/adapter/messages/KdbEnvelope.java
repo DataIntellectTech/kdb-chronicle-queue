@@ -10,7 +10,7 @@ import java.util.Arrays;
 
 @Getter
 @Setter
-public class KdbEnvelope implements AdapterMessage {
+public class KdbEnvelope implements KdbMessage {
 
   private Object[] envelope;
   private int envelopeDepth;
@@ -82,16 +82,16 @@ public class KdbEnvelope implements AdapterMessage {
     return destArray;
   }
 
-  public void addToEnvelope(KdbMessage kdbMessage, Long index) {
+  public void addToEnvelope(KdbQuoteMessage kdbQuoteMessage, Long index) {
 
-    chrontime = addElement(chrontime, Timestamp.valueOf(kdbMessage.getTime()));
-    sym = addElement(sym, kdbMessage.getSym());
-    bid = addElement(bid, kdbMessage.getBid());
-    bSize = addElement(bSize, kdbMessage.getBsize());
-    ask = addElement(ask, kdbMessage.getAsk());
-    aSize = addElement(aSize, kdbMessage.getAssize());
-    bex = addElement(bex, kdbMessage.getBex());
-    aex = addElement(aex, kdbMessage.getAex());
+    chrontime = addElement(chrontime, Timestamp.valueOf(kdbQuoteMessage.getTime()));
+    sym = addElement(sym, kdbQuoteMessage.getSym());
+    bid = addElement(bid, kdbQuoteMessage.getBid());
+    bSize = addElement(bSize, kdbQuoteMessage.getBsize());
+    ask = addElement(ask, kdbQuoteMessage.getAsk());
+    aSize = addElement(aSize, kdbQuoteMessage.getAssize());
+    bex = addElement(bex, kdbQuoteMessage.getBex());
+    aex = addElement(aex, kdbQuoteMessage.getAex());
 
     if (firstIndex == -1L) {
       firstIndex = index;

@@ -1,7 +1,7 @@
 package com.kdb.adapter.mapper;
 
 import com.kdb.adapter.messages.ChronicleQuoteMsg;
-import com.kdb.adapter.messages.KdbMessage;
+import com.kdb.adapter.messages.KdbQuoteMessage;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Mappings;
@@ -19,7 +19,7 @@ public interface SourceToDestinationMapper {
     @Mapping(target = "bex", source = "chronicleQuoteMessage.bex"),
     @Mapping(target = "aex", source = "chronicleQuoteMessage.aex")
   })
-  KdbMessage sourceToDestination(ChronicleQuoteMsg chronicleQuoteMessage);
+  KdbQuoteMessage sourceToDestination(ChronicleQuoteMsg chronicleQuoteMessage);
 
-  ChronicleQuoteMsg destinationToSource(KdbMessage kdbMessage);
+  ChronicleQuoteMsg destinationToSource(KdbQuoteMessage kdbQuoteMessage);
 }
