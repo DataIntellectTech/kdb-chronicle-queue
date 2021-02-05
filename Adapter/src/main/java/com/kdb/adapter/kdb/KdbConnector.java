@@ -1,6 +1,6 @@
 package com.kdb.adapter.kdb;
 
-import com.kdb.adapter.messages.KdbEnvelope;
+import com.kdb.adapter.messages.KdbQuoteEnvelope;
 import com.kdb.adapter.utils.AdapterProperties;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
@@ -9,8 +9,8 @@ public class KdbConnector {
 
   private static org.slf4j.Logger LOG = LoggerFactory.getLogger(KdbConnector.class.getName());
 
-  private static c kdbConnection = null;
-  public boolean connectedToKdb = false;
+  private c kdbConnection = null;
+  private boolean connectedToKdb = false;
 
   public KdbConnector(AdapterProperties adapterProperties) {
 
@@ -24,7 +24,7 @@ public class KdbConnector {
               adapterProperties.getKdbPort(),
               adapterProperties.getKdbLogin());
 
-      connectedToKdb = testConnection(adapterProperties);
+      connectedToKdb = testConnection();
 
     } catch (Exception e) {
       LOG.error("*** Encountered constructing KdbConnector: {}", e.getMessage());
@@ -44,7 +44,7 @@ public class KdbConnector {
   public void maintainKdbConnection(AdapterProperties adapterProperties)
       throws c.KException, IOException {
 
-    connectedToKdb = testConnection(adapterProperties);
+    connectedToKdb = testConnection();
     if (!connectedToKdb) {
       LOG.debug("*** Attempting to reconnect to Kdb server");
       kdbConnection =
@@ -55,14 +55,13 @@ public class KdbConnector {
     }
   }
 
-  private boolean testConnection(AdapterProperties adapterProperties)
+  private boolean testConnection()
       throws c.KException, IOException {
-    boolean result = false;
     Object queryResult = kdbConnection.k("1+1");
     return (queryResult.toString().equals("2")) ? true : false;
   }
 
-  public boolean saveMessage(AdapterProperties adapterProperties, KdbEnvelope kdbEnvelope) {
+  public boolean saveMessage(AdapterProperties adapterProperties, KdbQuoteEnvelope kdbEnvelope) {
     try {
       if (adapterProperties.isKdbConnectionEnabled()) {
 

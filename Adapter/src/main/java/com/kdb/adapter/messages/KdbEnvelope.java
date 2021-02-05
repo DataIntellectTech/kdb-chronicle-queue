@@ -2,114 +2,39 @@ package com.kdb.adapter.messages;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.sql.Timestamp;
 import java.util.Arrays;
 
 @Getter
 @Setter
-public class KdbEnvelope implements KdbMessage {
+public abstract class KdbEnvelope<T> {
 
-  private Object[] envelope;
-  private int envelopeDepth;
-  private long firstIndex;
-  private Timestamp[] chrontime;
-  private String[] sym;
-  private double[] bid;
-  private double[] bSize;
-  private double[] ask;
-  private double[] aSize;
-  private String[] bex;
-  private String[] aex;
+    private Object[] envelope;
+    private int envelopeDepth;
+    private long firstIndex;
 
-  private static Logger LOG = LoggerFactory.getLogger(KdbEnvelope.class);
+    public abstract void reset();
 
-  public KdbEnvelope() {
-    envelope = new Object[] {};
-    envelopeDepth = 0;
-    firstIndex = -1L;
-    chrontime = new Timestamp[] {};
-    sym = new String[] {};
-    bid = new double[] {};
-    bSize = new double[] {};
-    ask = new double[] {};
-    aSize = new double[] {};
-    bex = new String[] {};
-    aex = new String[] {};
-  }
-
-  public void reset() {
-    envelope = null;
-    chrontime = null;
-    sym = null;
-    bid = null;
-    bSize = null;
-    ask = null;
-    aSize = null;
-    bex = null;
-    aex = null;
-
-    envelope = new Object[] {};
-    envelopeDepth = 0;
-    firstIndex = -1L;
-    chrontime = new Timestamp[] {};
-    sym = new String[] {};
-    bid = new double[] {};
-    bSize = new double[] {};
-    ask = new double[] {};
-    aSize = new double[] {};
-    bex = new String[] {};
-    aex = new String[] {};
-  }
-
-  public Timestamp[] addElement(Timestamp[] srcArray, Timestamp elementToAdd) {
-    Timestamp[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);
-    destArray[destArray.length - 1] = elementToAdd;
-    return destArray;
-  }
-
-  public String[] addElement(String[] srcArray, String elementToAdd) {
-    String[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);
-    destArray[destArray.length - 1] = elementToAdd;
-    return destArray;
-  }
-
-  public double[] addElement(double[] srcArray, double elementToAdd) {
-    double[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);
-    destArray[destArray.length - 1] = elementToAdd;
-    return destArray;
-  }
-
-  public void addToEnvelope(KdbQuoteMessage kdbQuoteMessage, Long index) {
-
-    chrontime = addElement(chrontime, Timestamp.valueOf(kdbQuoteMessage.getTime()));
-    sym = addElement(sym, kdbQuoteMessage.getSym());
-    bid = addElement(bid, kdbQuoteMessage.getBid());
-    bSize = addElement(bSize, kdbQuoteMessage.getBsize());
-    ask = addElement(ask, kdbQuoteMessage.getAsk());
-    aSize = addElement(aSize, kdbQuoteMessage.getAssize());
-    bex = addElement(bex, kdbQuoteMessage.getBex());
-    aex = addElement(aex, kdbQuoteMessage.getAex());
-
-    if (firstIndex == -1L) {
-      firstIndex = index;
+    public Timestamp[] addElement(Timestamp[] srcArray, Timestamp elementToAdd) {
+        Timestamp[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);
+        destArray[destArray.length - 1] = elementToAdd;
+        return destArray;
     }
 
-    envelopeDepth++;
-  }
+    public String[] addElement(String[] srcArray, String elementToAdd) {
+        String[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);
+        destArray[destArray.length - 1] = elementToAdd;
+        return destArray;
+    }
 
-  @Override
-  public String toString() {
-    return Arrays.toString(envelope);
-  }
+    public double[] addElement(double[] srcArray, double elementToAdd) {
+        double[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);
+        destArray[destArray.length - 1] = elementToAdd;
+        return destArray;
+    }
 
-  public Object[] toObjectArray() {
-    long start = System.nanoTime();
-    envelope = new Object[] {chrontime, sym, bid, bSize, ask, aSize, bex, aex};
-    long finish = System.nanoTime() - start;
-    LOG.trace("TIMING: kdbEnvelope.toObjectArray() {} seconds", finish / 1e9);
-    return envelope;
-  }
+    abstract void addToEnvelope(T kdbMessage, Long index);
+
+    abstract Object[] toObjectArray();
 }
+

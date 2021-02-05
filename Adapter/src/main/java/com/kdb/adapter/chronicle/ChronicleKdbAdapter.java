@@ -3,8 +3,7 @@ package com.kdb.adapter.chronicle;
 import com.kdb.adapter.mapper.SourceToDestinationMapper;
 import com.kdb.adapter.messages.ChronicleQuoteMsg;
 import com.kdb.adapter.kdb.KdbConnector;
-import com.kdb.adapter.messages.KdbEnvelope;
-import com.kdb.adapter.messages.KdbMessage;
+import com.kdb.adapter.messages.KdbQuoteEnvelope;
 import com.kdb.adapter.messages.KdbQuoteMessage;
 import com.kdb.adapter.timer.AdapterTimer;
 import com.kdb.adapter.utils.AdapterProperties;
@@ -50,7 +49,8 @@ public class ChronicleKdbAdapter {
         queue.close();
       }
     } catch (Exception e) {
-    } // Can ignore anything at this stage...
+      LOG.error("Exception can be ignored here..{}",e.toString());
+    }
 
     LOG.debug("Resources cleaned up");
   }
@@ -81,7 +81,7 @@ public class ChronicleKdbAdapter {
       LOG.info("Tailer starting at index: {}", tailerIndex);
 
       // Create new kdbEnvelope instance
-      final KdbEnvelope envelope = new KdbEnvelope();
+      final KdbQuoteEnvelope envelope = new KdbQuoteEnvelope();
 
       adapterTimer = new AdapterTimer();
 
@@ -213,11 +213,12 @@ public class ChronicleKdbAdapter {
           queue.close();
         }
       } catch (Exception e) {
+        LOG.error("Exception can be ignored here..{}",e.toString());
       }
     }
   }
 
-  private boolean saveCurrentEnvelope(AdapterProperties adapterProperties, KdbEnvelope envelope) {
+  private boolean saveCurrentEnvelope(AdapterProperties adapterProperties, KdbQuoteEnvelope envelope) {
 
     boolean retVal = true;
 
