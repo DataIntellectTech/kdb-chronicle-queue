@@ -101,6 +101,10 @@ The Adapter for our scenario has been built as in Java and can be built out to a
 
 The application will implement the process above using vendor specific libraries (Chronicle and kdb+) as well as other 3rd party Open Source libraries.
 
+The main classes in the Adapter component are shown here:
+
+<img src="https://user-images.githubusercontent.com/74417594/107047194-738d8100-67bf-11eb-81d9-a0b8eae1230b.png" width="900" style="border:5px solid black" />
+
 ### 1. Connect to data source i.e. Chronicle Queue
 
 When the application is started, use Chronicle Queue java library to connect to a queue. This library can be added to a maven project pom.xml file as a dependency:
