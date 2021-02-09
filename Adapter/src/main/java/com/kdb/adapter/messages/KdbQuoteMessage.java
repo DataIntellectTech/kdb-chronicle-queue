@@ -1,8 +1,10 @@
 package com.kdb.adapter.messages;
 
+import com.kdb.adapter.mapper.QuoteMapper;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.mapstruct.factory.Mappers;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -43,4 +45,5 @@ public class KdbQuoteMessage implements KdbMessage {
 
     return new Object[] {chrontimeArr, symArr, bidArr, bSizeArr, askArr, aSizeArr, bexArr, aexArr};
   }
+
 }

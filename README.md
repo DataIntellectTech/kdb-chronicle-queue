@@ -101,6 +101,10 @@ The Adapter for our scenario has been built as in Java and can be built out to a
 
 The application will implement the process above using vendor specific libraries (Chronicle and kdb+) as well as other 3rd party Open Source libraries.
 
+The main classes in the Adapter component are shown here:
+
+<img src="https://user-images.githubusercontent.com/74417594/107422300-c2664e00-6b12-11eb-9dcd-991fd6826a7a.png" width="900" style="border:5px solid black" />
+
 ### 1. Connect to data source i.e. Chronicle Queue
 
 When the application is started, use Chronicle Queue java library to connect to a queue. This library can be added to a maven project pom.xml file as a dependency:
@@ -128,7 +132,7 @@ When there are no messages to read, the adapter should stop for a configurable p
 
 ### 3. Read message data ( -> chronicle obj)
 
-Marshall each quote message that is read by the tailer into a specific POJO representing the chronicle queue quote message.
+Marshall each message that is read by the tailer into a ChronicleMessage specific POJO that extends the Chronicle SelfDescribingMarshallable class to represent the chronicle queue message.
 This will be achieved using a simple Builder component to create an instance of the "Chronicle Quote Message" POJO for each message received.
 
 ### 4. Do mapping (chronicle obj -> kdb obj)
@@ -158,11 +162,7 @@ The envelope size will be limited by another configuration parameter:
 
 	kdb.envelope.size=200
 
-As there may be occasions when an envelope may not be full, that will lead to messages having been read from the source queue being "stuck" in the Adapter. To get around this, a Timer will be used to track the amount of time between messages being added to the envelope. 
-
-	kdb.envelope.waitTime=20
-	
-The parameter above will set the wait time and if that is exceeded, the current envelope will be sent to kdb+ and then reset.
+Once the threshold is reached, the current envelope will be sent to kdb+ and then reset. When there are not enough messages on the queue to fill the envelope, the current iteration will finish and the current envelope will be sent to kdb+ and then reset.
 
 #### kdb+ 
 

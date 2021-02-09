@@ -7,7 +7,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.Mappings;
 
 @Mapper
-public interface SourceToDestinationMapper {
+public interface QuoteMapper{
 
   @Mappings({
     @Mapping(target = "time", source = "chronicleQuoteMessage.time"),

@@ -33,8 +33,8 @@ public abstract class KdbEnvelope<T> {
         return destArray;
     }
 
-    abstract void addToEnvelope(T kdbMessage, Long index);
+    public abstract void addToEnvelope(T kdbMessage, Long index);
 
-    abstract Object[] toObjectArray();
+    public abstract Object[] toObjectArray();
 }
 

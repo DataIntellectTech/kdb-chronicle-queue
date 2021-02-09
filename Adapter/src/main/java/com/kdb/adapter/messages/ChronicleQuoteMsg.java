@@ -3,13 +3,14 @@ package com.kdb.adapter.messages;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import net.openhft.chronicle.bytes.BytesIn;
 
 import java.time.LocalDateTime;
 
 @Getter
 @Setter
 @NoArgsConstructor
-public class ChronicleQuoteMsg implements ChronicleMessage {
+public class ChronicleQuoteMsg extends ChronicleMessage {
 
   private LocalDateTime time;
   private String sym;
@@ -20,6 +21,30 @@ public class ChronicleQuoteMsg implements ChronicleMessage {
   private String bex;
   private String aex;
 
+  public ChronicleQuoteMsg(LocalDateTime time, String sym, double bid, double bsize, double ask, double assize, String bex, String aex){
+    this.time = time;
+    this.sym = sym;
+    this.bid = bid;
+    this.bsize = bsize;
+    this.ask = ask;
+    this.assize = assize;
+    this.bex = bex;
+    this.aex = aex;
+  }
+
+  @Override
+  public void readMarshallable(BytesIn bytes) {
+    this.time = (LocalDateTime) bytes.readObject(LocalDateTime.class);
+    this.sym = bytes.readUtf8();
+    this.bid = bytes.readDouble();
+    this.bsize = bytes.readDouble();
+    this.ask = bytes.readDouble();
+    this.assize = bytes.readDouble();
+    this.bex = bytes.readUtf8();
+    this.aex = bytes.readUtf8();
+  }
+
+  @Override
   public String toString() {
     // Format chronicle part of message...
     // E.g. Return value (2020.12.01+15:06:27.333Z;`HEIN.AS;100;9014;100;24543;`XAMS;`XAMS)

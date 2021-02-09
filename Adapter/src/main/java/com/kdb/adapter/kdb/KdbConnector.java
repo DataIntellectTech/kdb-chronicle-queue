@@ -1,5 +1,6 @@
 package com.kdb.adapter.kdb;
 
+import com.kdb.adapter.messages.KdbEnvelope;
 import com.kdb.adapter.messages.KdbQuoteEnvelope;
 import com.kdb.adapter.utils.AdapterProperties;
 import org.slf4j.LoggerFactory;
@@ -61,7 +62,7 @@ public class KdbConnector {
     return (queryResult.toString().equals("2")) ? true : false;
   }
 
-  public boolean saveMessage(AdapterProperties adapterProperties, KdbQuoteEnvelope kdbEnvelope) {
+  public boolean saveEnvelope(AdapterProperties adapterProperties, KdbEnvelope kdbEnvelope) {
     try {
       if (adapterProperties.isKdbConnectionEnabled()) {
 

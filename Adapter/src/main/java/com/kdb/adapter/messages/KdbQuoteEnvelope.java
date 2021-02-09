@@ -79,7 +79,6 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
     if (firstIndex == -1L) {
       firstIndex = index;
     }
-
     envelopeDepth++;
   }
 
