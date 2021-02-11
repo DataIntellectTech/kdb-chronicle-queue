@@ -115,6 +115,7 @@ public class ChronicleToKdbAdapter {
 
           start = System.nanoTime();
 
+          // Use the right read method from the adapterFactory based on type...
           ChronicleMessage chronicleMessage =
               adapterFactory.readChronicleMessage(
                   this.getMessageType(), dc, adapterProperties.getAdapterMessageType());

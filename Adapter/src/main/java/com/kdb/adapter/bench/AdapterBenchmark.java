@@ -1,0 +1,81 @@
+package com.kdb.adapter.bench;
+
+import com.kdb.adapter.data.QuoteHelper;
+import com.kdb.adapter.messages.ChronicleQuoteMsg;
+
+import net.openhft.chronicle.core.io.IOTools;
+import net.openhft.chronicle.core.jlbh.JLBH;
+import net.openhft.chronicle.core.jlbh.JLBHOptions;
+import net.openhft.chronicle.core.jlbh.JLBHTask;
+import net.openhft.chronicle.queue.ExcerptAppender;
+import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.wire.DocumentContext;
+import static net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder.single;
+
+public class AdapterBenchmark implements JLBHTask {
+
+  private SingleChronicleQueue sourceQueue;
+  private SingleChronicleQueue sinkQueue;
+  private ExcerptAppender appender;
+  QuoteHelper quoteHelper = new QuoteHelper();
+
+  public static void main(String[] args) {
+    JLBHOptions lth =
+        new JLBHOptions()
+            .warmUpIterations(50000)
+            .iterations(1000_000)
+            .throughput(100_000)
+            .recordOSJitter(false)
+            // disable as otherwise single GC event skews results heavily
+            .accountForCoordinatedOmmission(false)
+            .skipFirstRun(true)
+            .runs(5)
+            .jlbhTask(new AdapterBenchmark());
+    new JLBH(lth).start();
+  }
+
+  @Override
+  public void init(JLBH jlbh) {
+
+    final String queueName="replica";
+
+    IOTools.deleteDirWithFiles(queueName, 10);
+
+    sourceQueue = single(queueName).build();
+    sinkQueue = single(queueName).build();
+    appender = sourceQueue.acquireAppender();
+    ExcerptTailer tailer = sinkQueue.createTailer();
+    new Thread(
+            () -> {
+              ChronicleQuoteMsg readQuote = new ChronicleQuoteMsg();
+              while (true) {
+                try (DocumentContext dc = tailer.readingDocument()) {
+                  if (dc.wire() == null) continue;
+                  readQuote.readMarshallable(dc.wire().bytes());
+
+                  // Could do kdb part here
+
+                  jlbh.sample(System.nanoTime() - readQuote.ts);
+                }
+              }
+            })
+        .start();
+  }
+
+  @Override
+  public void run(long startTimeNS) {
+    ChronicleQuoteMsg writeQuote = quoteHelper.generateQuoteMsg();
+    writeQuote.ts = startTimeNS;
+    try (DocumentContext dc = appender.writingDocument()) {
+      writeQuote.writeMarshallable(dc.wire().bytes());
+    }
+  }
+
+  @Override
+  public void complete() {
+    sinkQueue.close();
+    sourceQueue.close();
+    System.exit(0);
+  }
+}
