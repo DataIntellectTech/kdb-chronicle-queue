@@ -7,11 +7,15 @@ import net.openhft.chronicle.core.io.IOTools;
 import net.openhft.chronicle.core.jlbh.JLBH;
 import net.openhft.chronicle.core.jlbh.JLBHOptions;
 import net.openhft.chronicle.core.jlbh.JLBHTask;
+import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.DocumentContext;
 import static net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder.single;
+
+import java.time.LocalDateTime;
 
 public class AdapterBenchmark implements JLBHTask {
 
@@ -24,7 +28,7 @@ public class AdapterBenchmark implements JLBHTask {
     JLBHOptions lth =
         new JLBHOptions()
             .warmUpIterations(50000)
-            .iterations(1000_000)
+            .iterations(1_000_000)
             .throughput(100_000)
             .recordOSJitter(false)
             // disable as otherwise single GC event skews results heavily
@@ -46,13 +50,14 @@ public class AdapterBenchmark implements JLBHTask {
     sinkQueue = single(queueName).build();
     appender = sourceQueue.acquireAppender();
     ExcerptTailer tailer = sinkQueue.createTailer();
+
     new Thread(
             () -> {
-              ChronicleQuoteMsg readQuote = new ChronicleQuoteMsg();
               while (true) {
                 try (DocumentContext dc = tailer.readingDocument()) {
                   if (dc.wire() == null) continue;
-                  readQuote.readMarshallable(dc.wire().bytes());
+
+                  ChronicleQuoteMsg readQuote = (ChronicleQuoteMsg)dc.wire().read("Quote").object();
 
                   // Could do kdb part here
 
@@ -63,12 +68,18 @@ public class AdapterBenchmark implements JLBHTask {
         .start();
   }
 
+  private SingleChronicleQueueBuilder single(String queueName) {
+    return ChronicleQueue.singleBuilder(queueName)
+            .readOnly(false)
+            .testBlockSize();
+  }
+
   @Override
   public void run(long startTimeNS) {
     ChronicleQuoteMsg writeQuote = quoteHelper.generateQuoteMsg();
     writeQuote.ts = startTimeNS;
     try (DocumentContext dc = appender.writingDocument()) {
-      writeQuote.writeMarshallable(dc.wire().bytes());
+      dc.wire().write("Quote").object(writeQuote);
     }
   }
 

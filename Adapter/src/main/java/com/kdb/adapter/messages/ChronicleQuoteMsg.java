@@ -22,7 +22,7 @@ public class ChronicleQuoteMsg extends ChronicleMessage {
   private String bex;
   private String aex;
 
-  public ChronicleQuoteMsg(Long ts, LocalDateTime time, String sym, double bid, double bsize, double ask, double assize, String bex, String aex){
+  public ChronicleQuoteMsg(final Long ts, final LocalDateTime time, final String sym, final double bid, final double bsize, final double ask, final double assize, final String bex, final String aex){
     this.ts = ts;
     this.time = time;
     this.sym = sym;

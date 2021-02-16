@@ -19,12 +19,11 @@ public class AdapterProperties {
   private String kdbDestination;
   private String kdbDestinationFunction;
   private int kdbEnvelopeSize;
-  private long kdbEnvelopeWaitTime;
 
   public AdapterProperties(Properties props) {
 
     setChronicleSource(props.getProperty("chronicle.source"));
-    setAdapterTailerName(props.getProperty("adapter.tailerName"));
+    setAdapterTailerName(props.getProperty("chronicle.tailerName"));
     setAdapterMessageType(props.getProperty("adapter.messageType"));
     setAdapterWaitTimeWhenNoMsgs(
         Long.parseLong(props.getProperty("adapter.waitTime.whenNoMsgs", "10000")));
@@ -36,7 +35,6 @@ public class AdapterProperties {
     setKdbDestination(props.getProperty("kdb.destination"));
     setKdbDestinationFunction(props.getProperty("kdb.destination.function"));
     setKdbEnvelopeSize(Integer.parseInt(props.getProperty("kdb.envelope.size", "100")));
-    setKdbEnvelopeWaitTime(Long.parseLong(props.getProperty("kdb.envelope.waitTime", "200")));
   }
 
   public AdapterProperties() {}
