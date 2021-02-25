@@ -20,9 +20,9 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage,KdbEnvel
 
 
     @Override
-    public KdbEnvelope getKdbEnvelope(MessageTypes.AdapterMessageTypes adapterType) {
+    public KdbEnvelope getKdbEnvelope(MessageTypes.AdapterMessageTypes adapterType, int envelopeMaxSize) {
         if (MessageTypes.AdapterMessageTypes.QUOTE.equals(adapterType)) {
-            return new KdbQuoteEnvelope();
+            return new KdbQuoteEnvelope(envelopeMaxSize);
         }
         return null;
     }

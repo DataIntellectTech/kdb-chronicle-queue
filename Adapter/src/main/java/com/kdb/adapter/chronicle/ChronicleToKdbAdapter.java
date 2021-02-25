@@ -14,11 +14,8 @@ import org.slf4j.LoggerFactory;
 public class ChronicleToKdbAdapter {
 
   private KdbConnector kdbConnector;
-  private long start;
-  private long finish;
   private static final Logger LOG = LoggerFactory.getLogger(ChronicleToKdbAdapter.class);
   private MessageTypes.AdapterMessageTypes messageType;
-  long tailerIndex;
   int howManyRead;
 
   public void setMessageType(MessageTypes.AdapterMessageTypes msgType) {
@@ -57,7 +54,7 @@ public class ChronicleToKdbAdapter {
       LOG.info("Tailer index: {}", tailer.index());
       long count = 0L;
       ChronicleQuoteMsg chronicleMessage;
-      start = System.nanoTime();
+      long start = System.nanoTime();
       for (; ; ) {
         try (DocumentContext dc = tailer.readingDocument()) {
           if (!dc.isPresent()) break;
@@ -69,7 +66,7 @@ public class ChronicleToKdbAdapter {
           LOG.debug("Message: {}", chronicleMessage);
         }
       }
-      finish = System.nanoTime() - start;
+      long finish = System.nanoTime() - start;
       LOG.info("TIMING: Read {} msgs -> ChronicleQuoteMsg obj in {} seconds", count, finish / 1e9);
       LOG.info("No more messages");
     }
@@ -81,6 +78,7 @@ public class ChronicleToKdbAdapter {
     // ret = -1 -- problem running
 
     int ret = 0;
+    long tailerIndex;
     long howManyStored = 0L;
     final long processStart = System.nanoTime();
     long processFinish;
@@ -101,7 +99,7 @@ public class ChronicleToKdbAdapter {
       AdapterFactory adapterFactory = new AdapterFactory();
 
       // Create new kdbEnvelope instance from factory for this adapter / config
-      final KdbEnvelope envelope = adapterFactory.getKdbEnvelope(this.getMessageType());
+      final KdbEnvelope envelope = adapterFactory.getKdbEnvelope(this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
       // Loop while there are messages...
       for (; ; ) {
@@ -113,45 +111,28 @@ public class ChronicleToKdbAdapter {
           // 3. read message data ( -> chronicle obj)
           // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "quote"
 
-          start = System.nanoTime();
-
           // Use the right read method from the adapterFactory based on type...
           ChronicleMessage chronicleMessage =
               adapterFactory.readChronicleMessage(
                   this.getMessageType(), dc, adapterProperties.getAdapterMessageType());
 
-          finish = System.nanoTime() - start;
-          LOG.trace("TIMING: msg -> ChronMsg obj in {} seconds", finish / 1e9);
-
           tailerIndex = tailer.index();
-          LOG.debug("Read message {} @ index: {}", chronicleMessage, tailerIndex);
 
           howManyRead++;
 
           // 4. Do mapping (chronicle obj -> kdb obj)
 
-          start = System.nanoTime();
-
           // Get right kind of KdbMessage object for this adapter from factory
           KdbMessage kdbMessage =
               adapterFactory.mapChronicleToKdbMessage(this.getMessageType(), chronicleMessage);
 
-          finish = System.nanoTime() - start;
-          LOG.trace("TIMING: mapped msg -> kdbMsg obj in {} seconds", finish / 1e9);
-
           // 5. Add kdb msg to current kdb envelope
-
-          start = System.nanoTime();
 
           envelope.addToEnvelope(kdbMessage, tailerIndex);
 
-          finish = System.nanoTime() - start;
-          LOG.debug("TIMING: Added msg -> envelope obj in {} seconds", finish / 1e9);
-
           // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
 
-          if (howManyRead == adapterProperties.getKdbEnvelopeSize()) {
-
+          if (envelope.isFull()) {
             if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
               howManyStored += adapterProperties.getKdbEnvelopeSize();
             } else {
@@ -166,9 +147,6 @@ public class ChronicleToKdbAdapter {
       // If here, nothing left on queue, check if there are any messages to store...
       if (envelope.getEnvelopeDepth() > 0) {
 
-        LOG.debug(
-            "Nothing else to process; current envelope size = {}", envelope.getEnvelopeDepth());
-
         // Save current envelope contents...
         int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
         if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
@@ -179,7 +157,6 @@ public class ChronicleToKdbAdapter {
         }
 
       } else {
-        LOG.debug("Nothing (left) to process and nothing to save");
         ret = 0;
       }
       // *********
@@ -201,20 +178,11 @@ public class ChronicleToKdbAdapter {
 
     boolean retVal = true;
 
-    start = System.nanoTime();
-
     if (kdbConnector == null) {
       kdbConnector = new KdbConnector(adapterProperties);
     }
 
     if (kdbConnector.saveEnvelope(adapterProperties, envelope)) {
-
-      finish = System.nanoTime() - start;
-      LOG.info(
-          "TIMING: Stored {} messages (up to index: {}) in {} seconds",
-          howManyRead,
-          tailerIndex,
-          finish / 1e9);
 
       // 7. Envelope contents saved. Re-set envelope...
       envelope.reset();

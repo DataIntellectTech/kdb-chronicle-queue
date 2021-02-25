@@ -12,7 +12,6 @@ import java.sql.Timestamp;
 public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
 
   private Object[] envelope;
-  private int envelopeDepth;
   private long firstIndex;
   private Timestamp[] chrontime;
   private String[] sym;
@@ -25,9 +24,11 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
 
   private static Logger LOG = LoggerFactory.getLogger(KdbQuoteEnvelope.class);
 
-  public KdbQuoteEnvelope() {
+  public KdbQuoteEnvelope(int maxSize) {
     envelope = new Object[] {};
     envelopeDepth = 0;
+    envelopeMaxSize = maxSize;
+    full = false;
     firstIndex = -1L;
     chrontime = new Timestamp[] {};
     sym = new String[] {};
@@ -53,6 +54,7 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
 
     envelope = new Object[] {};
     envelopeDepth = 0;
+    full = false;
     firstIndex = -1L;
     chrontime = new Timestamp[] {};
     sym = new String[] {};
@@ -80,6 +82,7 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
       firstIndex = index;
     }
     envelopeDepth++;
+    full = envelopeDepth == envelopeMaxSize;
   }
 
   @Override

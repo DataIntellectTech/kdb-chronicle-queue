@@ -9,9 +9,11 @@ import java.util.Arrays;
 @Setter
 public abstract class KdbEnvelope<T> {
 
-    private Object[] envelope;
-    private int envelopeDepth;
-    private long firstIndex;
+    Object[] envelope;
+    int envelopeDepth;
+    int envelopeMaxSize;
+    boolean full;
+    long firstIndex;
 
     public abstract void reset();
 

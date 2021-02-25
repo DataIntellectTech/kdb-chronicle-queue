@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
+import java.util.concurrent.*;
 
 public class AdapterApplication {
 
@@ -15,39 +16,43 @@ public class AdapterApplication {
 
   public static void main(String[] args) {
 
+    final ChronicleToKdbAdapter adapter = new ChronicleToKdbAdapter();
+
     try {
 
-      final ChronicleToKdbAdapter adapter = new ChronicleToKdbAdapter();
-
       final PropertyFileLoader properties = new PropertyFileLoader();
-      final Properties props = properties.getPropValues(args.length > 0 ? args[1] : "application.properties");
+      final Properties props =
+              properties.getPropValues(args.length > 0 ? args[1] : "application.properties");
       final AdapterProperties adapterProperties = new AdapterProperties(props);
-      int ret = 0;
 
-      // Set adapter message factory type based on config property
-      if (adapterProperties.getAdapterMessageType().equalsIgnoreCase("QUOTE")) {
-        adapter.setMessageType(MessageTypes.AdapterMessageTypes.QUOTE);
-      }
-      else if (adapterProperties.getAdapterMessageType().equalsIgnoreCase("TRADE")) {
-        adapter.setMessageType(MessageTypes.AdapterMessageTypes.TRADE);
-      }
-      else {
-        LOG.error(
-            "Adapter type ({}) not configured yet. Check config.",
-            adapterProperties.getAdapterMessageType());
-        System.exit(-1);
-      }
+      // Seed the adapter with the configured type...
+      setAdapterMessageType(adapterProperties.getAdapterMessageType(), adapter);
 
-      // Keep running processMessages method of the adapter to do as it says...
-      while (ret != -1) {
-        ret = adapter.processMessages(adapterProperties);
-        Thread.sleep(adapterProperties.getAdapterWaitTimeWhenNoMsgs());
-      }
+      ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-      adapter.tidyUp();
-      System.exit(ret);
+      Runnable task =
+              () -> adapter.processMessages(adapterProperties);
+
+      scheduler.scheduleWithFixedDelay(
+          task, 0, adapterProperties.getAdapterWaitTimeWhenNoMsgs(), TimeUnit.MILLISECONDS);
+
     } catch (Exception ex) {
       LOG.error("Problem running Adapter: {}", ex.toString());
+    }
+    finally{
+      adapter.tidyUp();
+    }
+  }
+
+  private static void setAdapterMessageType(String messageType, ChronicleToKdbAdapter adapter) {
+    // Set adapter message factory type based on config property
+    if (messageType.equalsIgnoreCase("QUOTE")) {
+      adapter.setMessageType(MessageTypes.AdapterMessageTypes.QUOTE);
+    } else if (messageType.equalsIgnoreCase("TRADE")) {
+      adapter.setMessageType(MessageTypes.AdapterMessageTypes.TRADE);
+    } else {
+      LOG.error("Adapter type ({}) not configured yet. Check config.", messageType);
+      System.exit(-1);
     }
   }
 }
