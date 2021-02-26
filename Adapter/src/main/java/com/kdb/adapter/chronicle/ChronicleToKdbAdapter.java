@@ -34,6 +34,20 @@ public class ChronicleToKdbAdapter {
     this.setMessageType(type);
   }
 
+  public boolean setAdapterMessageType(String messageType) {
+    // Set adapter message factory type based on config property
+    boolean ret = true;
+    if (messageType.equalsIgnoreCase("QUOTE")) {
+      this.setMessageType(MessageTypes.AdapterMessageTypes.QUOTE);
+    } else if (messageType.equalsIgnoreCase("TRADE")) {
+      this.setMessageType(MessageTypes.AdapterMessageTypes.TRADE);
+    } else {
+      LOG.error("Adapter type ({}) not configured yet. Check config.", messageType);
+      ret = false;
+    }
+    return ret;
+  }
+
   public void tidyUp() {
 
     try {
@@ -85,9 +99,9 @@ public class ChronicleToKdbAdapter {
 
     // 1. Connect to Chronicle Queue source
     // 2. Create "tailer" to listen for messages
-    try (SingleChronicleQueue queue =
-            SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
-        ExcerptTailer tailer = queue.createTailer(adapterProperties.getAdapterTailerName())) {
+    try (SingleChronicleQueue sourceQueue =
+            SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build(); ExcerptTailer tailer =
+        sourceQueue.createTailer(adapterProperties.getAdapterTailerName())) {
 
       LOG.info("Starting Chronicle kdb Adapter");
 
@@ -99,7 +113,9 @@ public class ChronicleToKdbAdapter {
       AdapterFactory adapterFactory = new AdapterFactory();
 
       // Create new kdbEnvelope instance from factory for this adapter / config
-      final KdbEnvelope envelope = adapterFactory.getKdbEnvelope(this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
+      final KdbEnvelope envelope =
+          adapterFactory.getKdbEnvelope(
+              this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
       // Loop while there are messages...
       for (; ; ) {
