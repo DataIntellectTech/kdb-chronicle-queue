@@ -71,15 +71,7 @@ public class AdapterBenchmark implements JLBHTask {
       new Thread(
               () -> {
                 LOG.info("In init() Thread");
-
-                while (true) {
-
-                  long start = System.nanoTime();
-
-                  adapter.processMessages(adapterProperties, jlbh);
-
-                  jlbh.sample(System.nanoTime() - start);
-                }
+                adapter.processMessages(adapterProperties, jlbh);
               })
           .start();
 

@@ -13,6 +13,8 @@ import net.openhft.chronicle.wire.DocumentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class ChronicleToKdbAdapter {
 
   private KdbConnector kdbConnector;
@@ -194,8 +196,22 @@ public class ChronicleToKdbAdapter {
     }
   }
 
+  private int trySend(AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope, NanoSampler writeMessageSampler) {
+      if (envelope.getEnvelopeDepth() > 0) {
 
-  public int processMessages(AdapterProperties adapterProperties, JLBH jlbh) {
+          // Save current envelope contents...
+          int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
+          long writeSamplerStart = System.nanoTime();
+          if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
+              writeMessageSampler.sampleNanos(System.nanoTime() - writeSamplerStart);
+              return envelopeDepthBeforeSave;
+          }
+      }
+
+      return 0;
+  }
+
+  public void processMessages(AdapterProperties adapterProperties, JLBH jlbh) {
     // ret = 0 -- all ok but nothing (left) to process
     // ret = -1 -- problem running
 
@@ -211,8 +227,8 @@ public class ChronicleToKdbAdapter {
     // 1. Connect to Chronicle Queue source
     // 2. Create "tailer" to listen for messages
     try (SingleChronicleQueue sourceQueue =
-            SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
-        ExcerptTailer tailer = sourceQueue.createTailer(adapterProperties.getAdapterTailerName())) {
+                 SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
+         ExcerptTailer tailer = sourceQueue.createTailer(adapterProperties.getAdapterTailerName())) {
 
       LOG.info("Starting Chronicle kdb Adapter");
 
@@ -225,16 +241,21 @@ public class ChronicleToKdbAdapter {
 
       // Create new kdbEnvelope instance from factory for this adapter / config
       final KdbEnvelope envelope =
-          adapterFactory.getKdbEnvelope(
-              this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
+              adapterFactory.getKdbEnvelope(
+                      this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
-      // Loop while there are messages...
-      for (; ; ) {
+      // Loop indefinitely
+      // In practice there would be a mechanism to set the stopped flag to true externally
+      AtomicBoolean stopped = new AtomicBoolean(false);
+      while (!stopped.get()) {
 
         try (DocumentContext dc = tailer.readingDocument()) {
 
-          if (!dc.isPresent()) break;
-          //if (dc.isPresent()) continue;
+          if (!dc.isPresent()) {
+            // if nothing new in the queue, try sending anything currently in the envelope
+            howManyStored += trySend(adapterProperties, tailer, envelope, writeMessageSampler);
+            continue;
+          }
 
           // 3. read message data ( -> chronicle obj)
           // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "quote"
@@ -243,8 +264,8 @@ public class ChronicleToKdbAdapter {
 
           // Use the right read method from the adapterFactory based on type...
           ChronicleMessage chronicleMessage =
-              adapterFactory.readChronicleMessage(
-                  this.getMessageType(), dc, adapterProperties.getAdapterMessageType());
+                  adapterFactory.readChronicleMessage(
+                          this.getMessageType(), dc, adapterProperties.getAdapterMessageType());
 
           readMessageSampler.sampleNanos(System.nanoTime() - readSamplerStart);
 
@@ -259,7 +280,7 @@ public class ChronicleToKdbAdapter {
 
           // Get right kind of KdbMessage object for this adapter from factory
           KdbMessage kdbMessage =
-              adapterFactory.mapChronicleToKdbMessage(this.getMessageType(), chronicleMessage);
+                  adapterFactory.mapChronicleToKdbMessage(this.getMessageType(), chronicleMessage);
 
           // 5. Add kdb msg to current kdb envelope
 
@@ -268,47 +289,10 @@ public class ChronicleToKdbAdapter {
           // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
 
           if (envelope.isFull()) {
-            long writeSamplerStart = System.nanoTime();
-            if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
-              writeMessageSampler.sampleNanos(System.nanoTime() - writeSamplerStart);
-              howManyStored += adapterProperties.getKdbEnvelopeSize();
-            } else {
-              // There was a problem saving...
-              ret = -1;
-            }
+            howManyStored += trySend(adapterProperties, tailer, envelope, writeMessageSampler);
           }
         }
       }
-
-      // *********
-      // If here, nothing left on queue, check if there are any messages to store...
-      if (envelope.getEnvelopeDepth() > 0) {
-
-        // Save current envelope contents...
-        int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
-        long writeSamplerStart = System.nanoTime();
-        if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
-          writeMessageSampler.sampleNanos(System.nanoTime() - writeSamplerStart);
-          howManyStored += envelopeDepthBeforeSave;
-        } else {
-          // There was a problem saving...
-          ret = -1;
-        }
-
-      } else {
-        ret = 0;
-      }
-      // *********
-      processFinish = System.nanoTime() - processStart;
-      LOG.info(
-          "Stopping Chronicle kdb Adapter. {} msgs stored in this cycle ({} seconds)",
-          howManyStored,
-          processFinish / 1e9);
-      return ret;
-
-    } catch (Exception ex) {
-      LOG.error("Error in processMessages() -- {}", ex.toString());
-      return -1;
     }
   }
 
