@@ -31,7 +31,7 @@ public class AdapterBenchmark implements JLBHTask {
         new JLBHOptions()
             .warmUpIterations(50_000)
             .iterations(1_000_000)
-            .throughput(1_00_000)
+            .throughput(100_000)
             .recordOSJitter(false)
             // disable as otherwise single GC event skews results heavily
             .accountForCoordinatedOmmission(false)

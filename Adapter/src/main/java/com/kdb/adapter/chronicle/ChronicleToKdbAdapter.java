@@ -135,7 +135,7 @@ public class ChronicleToKdbAdapter {
               adapterFactory.readChronicleMessage(
                   this.getMessageType(), dc, adapterProperties.getAdapterMessageType());
 
-          // check symbol and if match process else ignore.
+          // TODO check symbol and if match process else ignore.
           // if(symbol == SYM) continue;
 
           tailerIndex = tailer.index();
@@ -195,11 +195,9 @@ public class ChronicleToKdbAdapter {
     }
   }
 
+  // Benchmarking version
   private int trySend(
-      AdapterProperties adapterProperties,
-      ExcerptTailer tailer,
-      KdbEnvelope envelope,
-      JLBH jlbh) {
+      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope, JLBH jlbh) {
     if (envelope.getEnvelopeDepth() > 0) {
 
       // Save current envelope contents...
@@ -257,8 +255,7 @@ public class ChronicleToKdbAdapter {
             // if nothing new in the queue, try sending anything currently in the envelope
 
             // Store this envelope
-            howManyStored +=
-                trySend(adapterProperties, tailer, envelope, jlbh);
+            howManyStored += trySend(adapterProperties, tailer, envelope, jlbh);
 
             continue;
           }
@@ -302,8 +299,7 @@ public class ChronicleToKdbAdapter {
 
           if (envelope.isFull()) {
             // Store
-            howManyStored +=
-                trySend(adapterProperties, tailer, envelope, jlbh);
+            howManyStored += trySend(adapterProperties, tailer, envelope, jlbh);
           }
         }
       }
