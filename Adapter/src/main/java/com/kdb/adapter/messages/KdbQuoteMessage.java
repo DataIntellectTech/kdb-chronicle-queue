@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class KdbQuoteMessage implements KdbMessage {
 
+  private long ts;
   private LocalDateTime time;
   private String sym;
   private double bid;

@@ -1,7 +1,6 @@
 package com.kdb.adapter.kdb;
 
 import com.kdb.adapter.messages.KdbEnvelope;
-import com.kdb.adapter.messages.KdbQuoteEnvelope;
 import com.kdb.adapter.utils.AdapterProperties;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
@@ -59,7 +58,7 @@ public class KdbConnector {
   private boolean testConnection()
       throws c.KException, IOException {
     Object queryResult = kdbConnection.k("1+1");
-    return (queryResult.toString().equals("2")) ? true : false;
+    return queryResult.toString().equals("2");
   }
 
   public boolean saveEnvelope(AdapterProperties adapterProperties, KdbEnvelope kdbEnvelope) {

@@ -7,9 +7,10 @@ import org.mapstruct.Mapping;
 import org.mapstruct.Mappings;
 
 @Mapper
-public interface QuoteMapper{
+public interface QuoteMapper {
 
   @Mappings({
+    @Mapping(target = "ts", source = "chronicleQuoteMessage.ts"),
     @Mapping(target = "time", source = "chronicleQuoteMessage.time"),
     @Mapping(target = "sym", source = "chronicleQuoteMessage.sym"),
     @Mapping(target = "bid", source = "chronicleQuoteMessage.bid"),

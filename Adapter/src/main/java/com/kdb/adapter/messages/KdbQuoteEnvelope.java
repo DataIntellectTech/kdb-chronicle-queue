@@ -11,8 +11,9 @@ import java.sql.Timestamp;
 @Setter
 public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
 
-  private Object[] envelope;
-  private long firstIndex;
+//  private Object[] envelope;
+//  private long firstIndex;
+//  private long[] ts;
   private Timestamp[] chrontime;
   private String[] sym;
   private double[] bid;
@@ -24,12 +25,31 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
 
   private static Logger LOG = LoggerFactory.getLogger(KdbQuoteEnvelope.class);
 
+  //Only ever use this in benchmarking route....
+  public KdbQuoteEnvelope(KdbQuoteEnvelope tempEnvelope){
+    envelope = new Object[] {};
+    envelopeDepth = tempEnvelope.envelopeDepth;
+    envelopeMaxSize = tempEnvelope.getEnvelopeMaxSize();
+    full = false;
+    firstIndex = -1L;
+    ts = tempEnvelope.getTs();
+    chrontime = tempEnvelope.getChrontime();
+    sym = tempEnvelope.getSym();
+    bid = tempEnvelope.getBid();
+    bSize = tempEnvelope.getBSize();
+    ask = tempEnvelope.getAsk();
+    aSize = tempEnvelope.getASize();
+    bex = tempEnvelope.getBex();
+    aex = tempEnvelope.getAex();
+  }
+
   public KdbQuoteEnvelope(int maxSize) {
     envelope = new Object[] {};
     envelopeDepth = 0;
     envelopeMaxSize = maxSize;
     full = false;
     firstIndex = -1L;
+    ts = new long[] {};
     chrontime = new Timestamp[] {};
     sym = new String[] {};
     bid = new double[] {};
@@ -43,6 +63,7 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
   @Override
   public void reset() {
     envelope = null;
+    ts = null;
     chrontime = null;
     sym = null;
     bid = null;
@@ -56,6 +77,7 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
     envelopeDepth = 0;
     full = false;
     firstIndex = -1L;
+    ts = new long[] {};
     chrontime = new Timestamp[] {};
     sym = new String[] {};
     bid = new double[] {};
@@ -69,6 +91,7 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
   @Override
   public void addToEnvelope(KdbQuoteMessage kdbQuoteMessage, Long index) {
 
+    ts = addElement(ts, kdbQuoteMessage.getTs());
     chrontime = addElement(chrontime, Timestamp.valueOf(kdbQuoteMessage.getTime()));
     sym = addElement(sym, kdbQuoteMessage.getSym());
     bid = addElement(bid, kdbQuoteMessage.getBid());

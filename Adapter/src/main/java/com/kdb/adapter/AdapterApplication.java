@@ -3,8 +3,6 @@ package com.kdb.adapter;
 import com.kdb.adapter.chronicle.ChronicleToKdbAdapter;
 import com.kdb.adapter.utils.AdapterProperties;
 import com.kdb.adapter.utils.PropertyFileLoader;
-import net.openhft.chronicle.core.jlbh.JLBH;
-import net.openhft.chronicle.core.jlbh.JLBHOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,9 +29,7 @@ public class AdapterApplication {
 
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-        JLBH jlbh = new JLBH(new JLBHOptions());
-
-        Runnable task = () -> adapter.processMessages(adapterProperties, jlbh);
+        Runnable task = () -> adapter.processMessages(adapterProperties);
 
         scheduler.scheduleWithFixedDelay(
             task, 0, adapterProperties.getAdapterWaitTimeWhenNoMsgs(), TimeUnit.MILLISECONDS);

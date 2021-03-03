@@ -14,8 +14,16 @@ public abstract class KdbEnvelope<T> {
     int envelopeMaxSize;
     boolean full;
     long firstIndex;
+    // Needed for benchmarking
+    long[] ts;
 
     public abstract void reset();
+
+    public long[] addElement(long[] srcArray, long elementToAdd) {
+        long[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);
+        destArray[destArray.length - 1] = elementToAdd;
+        return destArray;
+    }
 
     public Timestamp[] addElement(Timestamp[] srcArray, Timestamp elementToAdd) {
         Timestamp[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);

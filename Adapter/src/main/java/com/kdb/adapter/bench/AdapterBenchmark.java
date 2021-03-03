@@ -10,22 +10,14 @@ import net.openhft.chronicle.core.io.IOTools;
 import net.openhft.chronicle.core.jlbh.JLBH;
 import net.openhft.chronicle.core.jlbh.JLBHOptions;
 import net.openhft.chronicle.core.jlbh.JLBHTask;
-import net.openhft.chronicle.core.util.NanoSampler;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
-import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.DocumentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder.single;
-
-import java.time.LocalDateTime;
 import java.util.Properties;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 public class AdapterBenchmark implements JLBHTask {
 
@@ -37,7 +29,7 @@ public class AdapterBenchmark implements JLBHTask {
   public static void main(String[] args) {
     JLBHOptions lth =
         new JLBHOptions()
-            .warmUpIterations(5_000)
+            .warmUpIterations(50_000)
             .iterations(1_000_000)
             .throughput(1_00_000)
             .recordOSJitter(false)
@@ -66,11 +58,8 @@ public class AdapterBenchmark implements JLBHTask {
 
       adapter.setAdapterMessageType(adapterProperties.getAdapterMessageType());
 
-      LOG.info("In init()");
-
       new Thread(
               () -> {
-                LOG.info("In init() Thread");
                 adapter.processMessages(adapterProperties, jlbh);
               })
           .start();
