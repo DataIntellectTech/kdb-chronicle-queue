@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @RestController
 public class ProducerController {
@@ -24,7 +25,7 @@ public class ProducerController {
   @Value("${chronicle.quote.queue}")
   String quoteQueuePath;
 
-  private boolean startQuoteGenerator = false;
+  private AtomicBoolean startQuoteGenerator = new AtomicBoolean(false);
 
   @GetMapping(value = "/quoteLoader")
   public String quoteLoader(
@@ -34,10 +35,10 @@ public class ProducerController {
       @RequestParam(value = "Batch Interval in millis", required = true) long batchInterval) {
     try {
       if ("START".equalsIgnoreCase(command)) {
-        startQuoteGenerator = true;
+        startQuoteGenerator.set(true);
         quoteGenerator(num, msgInterval, batchInterval);
       } else if ("STOP".equalsIgnoreCase(command)) {
-        startQuoteGenerator = false;
+        startQuoteGenerator.set(false);
       }
     } catch (Exception e) {
       return "*** Encountered error in method quoteLoader: " + e.getMessage();
@@ -60,7 +61,7 @@ public class ProducerController {
       scheduler.scheduleWithFixedDelay(task, 0, batchInterval, TimeUnit.MILLISECONDS);
 
       while (true) {
-        if (!startQuoteGenerator) {
+        if (!startQuoteGenerator.get()) {
           scheduler.shutdown();
           try {
             if (!scheduler.awaitTermination(800, TimeUnit.MILLISECONDS)) {
@@ -94,7 +95,7 @@ public class ProducerController {
       }
 
       try (DocumentContext dc = appender.writingDocument()) {
-        dc.wire().write("quote").object(quoteHelper.generateQuoteMsg());
+        dc.wire().write("QUOTE").object(quoteHelper.generateQuoteMsg());
       } catch (Exception ex) {
         LOG.error("Error writing message: {}", ex.toString());
       }

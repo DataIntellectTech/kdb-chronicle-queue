@@ -14,15 +14,27 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ChronicleToKdbAdapter {
+public class ChronicleToKdbAdapter implements Runnable {
 
   private KdbConnector kdbConnector;
   private static final Logger LOG = LoggerFactory.getLogger(ChronicleToKdbAdapter.class);
   private MessageTypes.AdapterMessageTypes messageType;
   int howManyRead;
 
+  private AtomicBoolean stopped = new AtomicBoolean(false);
+  private AdapterProperties adapterProperties;
+  private JLBH jlbh;
+
+  public void setAdapterProperties(AdapterProperties props) {
+    this.adapterProperties = props;
+  }
+
   public void setMessageType(MessageTypes.AdapterMessageTypes msgType) {
     this.messageType = msgType;
+  }
+
+  public void setJLBH(JLBH jlbh) {
+    this.jlbh = jlbh;
   }
 
   public MessageTypes.AdapterMessageTypes getMessageType() {
@@ -35,6 +47,17 @@ public class ChronicleToKdbAdapter {
 
   public ChronicleToKdbAdapter(MessageTypes.AdapterMessageTypes type) {
     this.setMessageType(type);
+  }
+
+  public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props) {
+    this.setAdapterMessageType(adapterMessageType);
+    this.setAdapterProperties(props);
+  }
+
+  public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props, JLBH jlbh) {
+    this.setAdapterMessageType(adapterMessageType);
+    this.setAdapterProperties(props);
+    this.setJLBH(jlbh);
   }
 
   public boolean setAdapterMessageType(String messageType) {
@@ -63,38 +86,20 @@ public class ChronicleToKdbAdapter {
     LOG.debug("Resources cleaned up");
   }
 
-  public int checkMessages(AdapterProperties adapterProperties) {
-
-    try (SingleChronicleQueue queue =
-            SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
-        ExcerptTailer tailer = queue.createTailer(adapterProperties.getAdapterTailerName())) {
-      LOG.info("Tailer index: {}", tailer.index());
-      long count = 0L;
-      ChronicleQuoteMsg chronicleMessage;
-      long start = System.nanoTime();
-      for (; ; ) {
-        try (DocumentContext dc = tailer.readingDocument()) {
-          if (!dc.isPresent()) break;
-
-          chronicleMessage =
-              (ChronicleQuoteMsg)
-                  dc.wire().read(adapterProperties.getAdapterMessageType()).object();
-          count++;
-          LOG.debug("Message: {}", chronicleMessage);
-        }
-      }
-      long finish = System.nanoTime() - start;
-      LOG.info("TIMING: Read {} msgs -> ChronicleQuoteMsg obj in {} seconds", count, finish / 1e9);
-      LOG.info("No more messages");
-    }
-    return 0;
+  public void stop() {
+    stopped.set(true);
   }
 
-  public int processMessages(AdapterProperties adapterProperties) {
-    // ret = 0 -- all ok but nothing (left) to process
-    // ret = -1 -- problem running
+  public void run() {
+    if (adapterProperties.getRunMode().equalsIgnoreCase("BENCH")) {
+      benchmarkProcessMessages();
+    } else {
+      processMessages();
+    }
+  }
 
-    int ret = 0;
+  public void processMessages() {
+
     long tailerIndex;
     long howManyStored = 0L;
     final long processStart = System.nanoTime();
@@ -120,25 +125,45 @@ public class ChronicleToKdbAdapter {
           adapterFactory.getKdbEnvelope(
               this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
-      // Loop while there are messages...
-      for (; ; ) {
+      // Loop until stopped...
+      while (!stopped.get()) {
 
         try (DocumentContext dc = tailer.readingDocument()) {
 
-          if (!dc.isPresent()) break;
+          if (!dc.isPresent()) {
+            // if nothing new in the queue, try sending anything currently in the envelope
+
+            // Store this envelope
+            if (envelope.getEnvelopeDepth() > 0) {
+
+              // Save current envelope contents...
+              int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
+              if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
+                howManyStored += envelopeDepthBeforeSave;
+              } else {
+                // Stop running
+                this.stop();
+              }
+            }
+            continue;
+          }
 
           // 3. read message data ( -> chronicle obj)
-          // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "quote"
+          // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "QUOTE"
 
           // Use the right read method from the adapterFactory based on type...
           ChronicleMessage chronicleMessage =
-              adapterFactory.readChronicleMessage(
-                  this.getMessageType(), dc, adapterProperties.getAdapterMessageType());
-
-          // TODO check symbol and if match process else ignore.
-          // if(symbol == SYM) continue;
+              adapterFactory.readChronicleMessage(this.getMessageType(), dc);
 
           tailerIndex = tailer.index();
+
+          // TODO Need to make this work on ChronicleMessage rather than casting
+          // Check message against filter
+          ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
+          if ((adapterProperties.getAdapterMessageFilter().length() > 0) &&
+            (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)){
+            continue;
+          }
 
           howManyRead++;
 
@@ -158,40 +183,28 @@ public class ChronicleToKdbAdapter {
             if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
               howManyStored += adapterProperties.getKdbEnvelopeSize();
             } else {
-              // There was a problem saving...
-              ret = -1;
+              // Stop running
+              this.stop();
             }
           }
         }
       }
 
       // *********
-      // If here, nothing left on queue, check if there are any messages to store...
-      if (envelope.getEnvelopeDepth() > 0) {
+      // If here, stopping thread
 
-        // Save current envelope contents...
-        int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
-        if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
-          howManyStored += envelopeDepthBeforeSave;
-        } else {
-          // There was a problem saving...
-          ret = -1;
-        }
-
-      } else {
-        ret = 0;
-      }
       // *********
       processFinish = System.nanoTime() - processStart;
       LOG.info(
           "Stopping Chronicle kdb Adapter. {} msgs stored in this cycle ({} seconds)",
           howManyStored,
           processFinish / 1e9);
-      return ret;
 
     } catch (Exception ex) {
       LOG.error("Error in processMessages() -- {}", ex.toString());
-      return -1;
+    }
+    finally{
+      tidyUp();
     }
   }
 
@@ -207,20 +220,12 @@ public class ChronicleToKdbAdapter {
         return envelopeDepthBeforeSave;
       }
     }
-
     return 0;
   }
 
-  public void processMessages(AdapterProperties adapterProperties, JLBH jlbh) {
-    // ret = 0 -- all ok but nothing (left) to process
-    // ret = -1 -- problem running
+  public void benchmarkProcessMessages() {
 
-    int ret = 0;
     long tailerIndex;
-    long howManyStored = 0L;
-    final long processStart = System.nanoTime();
-    long processFinish;
-
     NanoSampler readMessageSampler = jlbh.addProbe("Adapter readMessage()");
     NanoSampler convertToKDBSampler = jlbh.addProbe("Adapter convertToKDB()");
 
@@ -244,39 +249,38 @@ public class ChronicleToKdbAdapter {
           adapterFactory.getKdbEnvelope(
               this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
-      // Loop indefinitely
-      // In practice there would be a mechanism to set the stopped flag to true externally
-      AtomicBoolean stopped = new AtomicBoolean(false);
+      // Loop until stopped...
       while (!stopped.get()) {
 
         try (DocumentContext dc = tailer.readingDocument()) {
 
           if (!dc.isPresent()) {
             // if nothing new in the queue, try sending anything currently in the envelope
-
-            // Store this envelope
-            howManyStored += trySend(adapterProperties, tailer, envelope, jlbh);
-
+            trySend(adapterProperties, tailer, envelope, jlbh);
             continue;
           }
 
           // 3. read message data ( -> chronicle obj)
-          // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "quote"
+          // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "QUOTE"
 
           // Use the right read method from the adapterFactory based on type...
           ChronicleMessage chronicleMessage =
-              adapterFactory.readChronicleMessage(
-                  this.getMessageType(), dc, adapterProperties.getAdapterMessageType());
+              adapterFactory.readChronicleMessage(this.getMessageType(), dc);
 
-          // Read a message so capture timestamp and add to probe
+          // Have read a message so capture timestamp and add to probe
           long readSamplerStart = System.nanoTime();
+          // TODO Need to make this work on ChronicleMessage rather than casting
           ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
           readMessageSampler.sampleNanos(readSamplerStart - msg.getTs());
 
-          // TODO check symbol and if match process else ignore.
-          // if(symbol == SYM) continue;
-
+          //Increment current "read up to index"
           tailerIndex = tailer.index();
+
+          // Check if message to be processed. Check against filter (if there is a filter specified in props)
+          if ((adapterProperties.getAdapterMessageFilter().length() > 0) &&
+                  (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)){
+            continue;
+          }
 
           howManyRead++;
 
@@ -299,7 +303,7 @@ public class ChronicleToKdbAdapter {
 
           if (envelope.isFull()) {
             // Store
-            howManyStored += trySend(adapterProperties, tailer, envelope, jlbh);
+            trySend(adapterProperties, tailer, envelope, jlbh);
           }
         }
       }
