@@ -1,2 +1,2 @@
 #!/bin/bash
-q dummytp.q -p 5000 -u 1
+q ./dummytp.q -p 5000 -u 1
