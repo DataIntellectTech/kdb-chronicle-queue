@@ -3,7 +3,7 @@
 \d .schema
 
 
-params:.Q.def[`schema`bit64`debug!(`;1b;1b)] .Q.opt .z.x	
+params:.Q.def[`schema`bit64`debug!(`;1b;0b)] .Q.opt .z.x	
 bit64:params[`bit64]	/ bit version - default 64bit
 debug:params[`debug]	/ debug mode - default 1b
 
@@ -84,7 +84,7 @@ checkinsert:{[tab; data]
  
  .[insert;(tab;toinsert);{[x;e] '"failed to insert data - ",e}[toinsert]];
   
- -1"insert successful";
+ if[debug;-1"insert successful"];
  }
 
 arraysize:{2 xexp ceiling xlog[2;16+x]}
