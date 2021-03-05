@@ -19,27 +19,12 @@ public class ChronicleToKdbAdapter implements Runnable {
   private KdbConnector kdbConnector;
   private static final Logger LOG = LoggerFactory.getLogger(ChronicleToKdbAdapter.class);
   private MessageTypes.AdapterMessageTypes messageType;
-  int howManyRead;
+  private int howManyRead;
+  private long howManyStored = 0L;
 
   private AtomicBoolean stopped = new AtomicBoolean(false);
   private AdapterProperties adapterProperties;
   private JLBH jlbh;
-
-  public void setAdapterProperties(AdapterProperties props) {
-    this.adapterProperties = props;
-  }
-
-  public void setMessageType(MessageTypes.AdapterMessageTypes msgType) {
-    this.messageType = msgType;
-  }
-
-  public void setJLBH(JLBH jlbh) {
-    this.jlbh = jlbh;
-  }
-
-  public MessageTypes.AdapterMessageTypes getMessageType() {
-    return this.messageType;
-  }
 
   public ChronicleToKdbAdapter() {
     // Empty no args constructor
@@ -58,6 +43,34 @@ public class ChronicleToKdbAdapter implements Runnable {
     this.setAdapterMessageType(adapterMessageType);
     this.setAdapterProperties(props);
     this.setJLBH(jlbh);
+  }
+
+  public void stop() {
+    stopped.set(true);
+  }
+
+  public void run() {
+    if (adapterProperties.getRunMode().equalsIgnoreCase("BENCH")) {
+      benchmarkProcessMessages();
+    } else {
+      processMessages();
+    }
+  }
+
+  public void setAdapterProperties(AdapterProperties props) {
+    this.adapterProperties = props;
+  }
+
+  public void setMessageType(MessageTypes.AdapterMessageTypes msgType) {
+    this.messageType = msgType;
+  }
+
+  public void setJLBH(JLBH jlbh) {
+    this.jlbh = jlbh;
+  }
+
+  public MessageTypes.AdapterMessageTypes getMessageType() {
+    return this.messageType;
   }
 
   public boolean setAdapterMessageType(String messageType) {
@@ -86,22 +99,10 @@ public class ChronicleToKdbAdapter implements Runnable {
     LOG.debug("Resources cleaned up");
   }
 
-  public void stop() {
-    stopped.set(true);
-  }
-
-  public void run() {
-    if (adapterProperties.getRunMode().equalsIgnoreCase("BENCH")) {
-      benchmarkProcessMessages();
-    } else {
-      processMessages();
-    }
-  }
-
   public void processMessages() {
 
     long tailerIndex;
-    long howManyStored = 0L;
+    // long howManyStored = 0L;
     final long processStart = System.nanoTime();
     long processFinish;
 
@@ -132,18 +133,8 @@ public class ChronicleToKdbAdapter implements Runnable {
 
           if (!dc.isPresent()) {
             // if nothing new in the queue, try sending anything currently in the envelope
-
-            // Store this envelope
-            if (envelope.getEnvelopeDepth() > 0) {
-
-              // Save current envelope contents...
-              int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
-              if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
-                howManyStored += envelopeDepthBeforeSave;
-              } else {
-                // Stop running
-                this.stop();
-              }
+            if (!envelope.isEmpty()) {
+              trySend(adapterProperties, tailer, envelope);
             }
             continue;
           }
@@ -160,8 +151,8 @@ public class ChronicleToKdbAdapter implements Runnable {
           // TODO Need to make this work on ChronicleMessage rather than casting
           // Check message against filter
           ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
-          if ((adapterProperties.getAdapterMessageFilter().length() > 0) &&
-            (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)){
+          if ((adapterProperties.getAdapterMessageFilter().length() > 0)
+              && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
             continue;
           }
 
@@ -177,15 +168,10 @@ public class ChronicleToKdbAdapter implements Runnable {
 
           envelope.addToEnvelope(kdbMessage, tailerIndex);
 
-          // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
+          // 6. When envelope / batch full, send data to destination ( -> kdb)
 
           if (envelope.isFull()) {
-            if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
-              howManyStored += adapterProperties.getKdbEnvelopeSize();
-            } else {
-              // Stop running
-              this.stop();
-            }
+            trySend(adapterProperties, tailer, envelope);
           }
         }
       }
@@ -202,27 +188,32 @@ public class ChronicleToKdbAdapter implements Runnable {
 
     } catch (Exception ex) {
       LOG.error("Error in processMessages() -- {}", ex.toString());
-    }
-    finally{
+    } finally {
       tidyUp();
     }
   }
 
-  // Benchmarking version
-  private int trySend(
-      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope, JLBH jlbh) {
-    if (envelope.getEnvelopeDepth() > 0) {
-
-      // Save current envelope contents...
-      int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
-
-      if (saveCurrentEnvelope(adapterProperties, envelope, tailer, jlbh)) {
-        return envelopeDepthBeforeSave;
-      }
+  private void trySend(
+      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope) {
+    int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
+    if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
+      howManyStored += envelopeDepthBeforeSave;
+    } else {
+      // Problem => Stop running
+      this.stop();
     }
-    return 0;
   }
 
+  // Benchmarking version
+  private void trySend(
+      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope, JLBH jlbh) {
+    // Save current envelope contents...
+    if (!saveCurrentEnvelope(adapterProperties, envelope, tailer, jlbh)) {
+      this.stop();
+    }
+  }
+
+  // Benchmarking version
   public void benchmarkProcessMessages() {
 
     long tailerIndex;
@@ -256,7 +247,9 @@ public class ChronicleToKdbAdapter implements Runnable {
 
           if (!dc.isPresent()) {
             // if nothing new in the queue, try sending anything currently in the envelope
-            trySend(adapterProperties, tailer, envelope, jlbh);
+            if (!envelope.isEmpty()) {
+              trySend(adapterProperties, tailer, envelope, jlbh);
+            }
             continue;
           }
 
@@ -273,12 +266,13 @@ public class ChronicleToKdbAdapter implements Runnable {
           ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
           readMessageSampler.sampleNanos(readSamplerStart - msg.getTs());
 
-          //Increment current "read up to index"
+          // Increment current "read up to index"
           tailerIndex = tailer.index();
 
-          // Check if message to be processed. Check against filter (if there is a filter specified in props)
-          if ((adapterProperties.getAdapterMessageFilter().length() > 0) &&
-                  (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)){
+          // Check if message to be processed. Check against filter (if there is a filter specified
+          // in props)
+          if ((adapterProperties.getAdapterMessageFilter().length() > 0)
+              && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
             continue;
           }
 
@@ -307,6 +301,10 @@ public class ChronicleToKdbAdapter implements Runnable {
           }
         }
       }
+    } catch (Exception ex) {
+      LOG.error("Error in benchmarkProcessMessages() -- {}", ex.toString());
+    } finally {
+      tidyUp();
     }
   }
 

@@ -11,9 +11,9 @@ import java.sql.Timestamp;
 @Setter
 public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
 
-//  private Object[] envelope;
-//  private long firstIndex;
-//  private long[] ts;
+  //  private Object[] envelope;
+  //  private long firstIndex;
+  //  private long[] ts;
   private Timestamp[] chrontime;
   private String[] sym;
   private double[] bid;
@@ -25,12 +25,13 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
 
   private static Logger LOG = LoggerFactory.getLogger(KdbQuoteEnvelope.class);
 
-  //Only ever use this in benchmarking route....
-  public KdbQuoteEnvelope(KdbQuoteEnvelope tempEnvelope){
+  // Only ever use this in benchmarking route....
+  public KdbQuoteEnvelope(KdbQuoteEnvelope tempEnvelope) {
     envelope = new Object[] {};
     envelopeDepth = tempEnvelope.envelopeDepth;
     envelopeMaxSize = tempEnvelope.getEnvelopeMaxSize();
     full = false;
+    empty = true;
     firstIndex = -1L;
     ts = tempEnvelope.getTs();
     chrontime = tempEnvelope.getChrontime();
@@ -48,6 +49,7 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
     envelopeDepth = 0;
     envelopeMaxSize = maxSize;
     full = false;
+    empty = true;
     firstIndex = -1L;
     ts = new long[] {};
     chrontime = new Timestamp[] {};
@@ -76,6 +78,7 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
     envelope = new Object[] {};
     envelopeDepth = 0;
     full = false;
+    empty = true;
     firstIndex = -1L;
     ts = new long[] {};
     chrontime = new Timestamp[] {};
@@ -105,6 +108,7 @@ public class KdbQuoteEnvelope extends KdbEnvelope<KdbQuoteMessage> {
       firstIndex = index;
     }
     envelopeDepth++;
+    empty = false;
     full = envelopeDepth == envelopeMaxSize;
   }
 

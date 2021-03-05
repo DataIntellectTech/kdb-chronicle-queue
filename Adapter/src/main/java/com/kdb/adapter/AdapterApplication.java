@@ -21,14 +21,12 @@ public class AdapterApplication {
       final AdapterProperties adapterProperties = new AdapterProperties(props);
 
       final ChronicleToKdbAdapter adapter =
-          new ChronicleToKdbAdapter(
-              adapterProperties.getAdapterMessageType(), adapterProperties);
+          new ChronicleToKdbAdapter(adapterProperties.getAdapterMessageType(), adapterProperties);
 
       Thread thread = new Thread(adapter);
       thread.start();
 
-      // Do this in adapter class
-      // adapter.tidyUp();
+      // TODO introduce means to call adapter.stop() from here
 
     } catch (Exception ex) {
       LOG.error("Problem running Adapter: Exception: {}", ex.toString());

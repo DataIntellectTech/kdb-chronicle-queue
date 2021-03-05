@@ -11,29 +11,41 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
 
   @Override
   public ChronicleMessage readChronicleMessage(
-      MessageTypes.AdapterMessageTypes adapterType,
-      DocumentContext dc) {
-    if (MessageTypes.AdapterMessageTypes.QUOTE.equals(adapterType)) {
-      return (ChronicleQuoteMsg) dc.wire().read(adapterType.toString()).object();
+      MessageTypes.AdapterMessageTypes adapterType, DocumentContext dc) {
+    switch (adapterType) {
+      case QUOTE:
+        return (ChronicleQuoteMsg) dc.wire().read(adapterType.toString()).object();
+      //case TRADE:
+      //  return (ChronicleTradeMsg) dc.wire().read(adapterType.toString()).object();
+      default:
+        return null;
     }
-    return null;
   }
 
   @Override
   public KdbEnvelope getKdbEnvelope(
       MessageTypes.AdapterMessageTypes adapterType, int envelopeMaxSize) {
-    if (MessageTypes.AdapterMessageTypes.QUOTE.equals(adapterType)) {
-      return new KdbQuoteEnvelope(envelopeMaxSize);
+    switch (adapterType) {
+      case QUOTE:
+        return new KdbQuoteEnvelope(envelopeMaxSize);
+      //case TRADE:
+      //  return new KdbTradeEnvelope(envelopeMaxSize);
+      default:
+        return null;
     }
-    return null;
   }
 
   @Override
   public KdbMessage mapChronicleToKdbMessage(
       MessageTypes.AdapterMessageTypes adapterType, ChronicleMessage chronicleMsg) {
-    if (MessageTypes.AdapterMessageTypes.QUOTE.equals(adapterType)) {
-      return quoteMapper.sourceToDestination((ChronicleQuoteMsg) chronicleMsg);
+
+    switch (adapterType) {
+      case QUOTE:
+        return quoteMapper.sourceToDestination((ChronicleQuoteMsg) chronicleMsg);
+      //case TRADE:
+      //  return (ChronicleTradeMsg) dc.wire().read(adapterType.toString()).object();
+      default:
+        return null;
     }
-    return null;
   }
 }

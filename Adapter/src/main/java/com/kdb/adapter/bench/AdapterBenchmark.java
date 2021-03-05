@@ -49,7 +49,9 @@ public class AdapterBenchmark implements JLBHTask {
       final Properties props = properties.getPropValues("application.properties");
       final AdapterProperties adapterProperties = new AdapterProperties(props);
       final String queueName = adapterProperties.getChronicleSource();
-      final ChronicleToKdbAdapter adapter = new ChronicleToKdbAdapter(adapterProperties.getAdapterMessageType(), adapterProperties, jlbh);
+      final ChronicleToKdbAdapter adapter =
+          new ChronicleToKdbAdapter(
+              adapterProperties.getAdapterMessageType(), adapterProperties, jlbh);
 
       IOTools.deleteDirWithFiles(queueName, 10);
 
@@ -58,8 +60,6 @@ public class AdapterBenchmark implements JLBHTask {
 
       Thread thread = new Thread(adapter);
       thread.start();
-
-      adapter.tidyUp();
 
     } catch (Exception ex) {
       LOG.error("Error: {}", ex.toString());
