@@ -103,7 +103,7 @@ The application will implement the process above using vendor specific libraries
 
 The main classes in the Adapter component are shown here:
 
-<img src="https://user-images.githubusercontent.com/74417594/107422300-c2664e00-6b12-11eb-9dcd-991fd6826a7a.png" width="900" style="border:5px solid black" />
+<img src="https://user-images.githubusercontent.com/74417594/110123752-38c83a00-7db9-11eb-955f-fac7edd4b161.png" width="900" style="border:5px solid black" />
 
 ### 1. Connect to data source i.e. Chronicle Queue
 
