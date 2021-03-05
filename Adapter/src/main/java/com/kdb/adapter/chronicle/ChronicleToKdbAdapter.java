@@ -337,17 +337,26 @@ public class ChronicleToKdbAdapter implements Runnable {
       AdapterProperties adapterProperties, KdbEnvelope envelope, ExcerptTailer tailer, JLBH jlbh) {
 
     boolean retVal = true;
+    NanoSampler writeToKDBSampler = jlbh.addProbe("Adapter writeToKDB() ONLY");
 
     if (kdbConnector == null) {
       kdbConnector = new KdbConnector(adapterProperties);
     }
 
+    // Capture timestamp before writing to kdb
+    long writeSamplerBefore = System.nanoTime();
+
     if (kdbConnector.saveEnvelope(adapterProperties, envelope)) {
 
-      // Add benchmark samples for each message in Envelope here
+      // Saved, capture timestamp
       long kdbUpdatedTimeStamp = System.nanoTime();
+
+      // Add sample for batch write on its own
+      writeToKDBSampler.sampleNanos(kdbUpdatedTimeStamp - writeSamplerBefore);
+
+      // Add benchmark samples for each message in Envelope here
       // Iterate through envelope and get diff from message creation ts to kdbUpdatedTimeStamp
-      // add sample
+      // add sample i.e. End to end for each message
       for (long msgCreateTs : envelope.getTs()) {
         jlbh.sample(kdbUpdatedTimeStamp - msgCreateTs);
       }

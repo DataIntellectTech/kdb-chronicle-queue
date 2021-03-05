@@ -46,7 +46,7 @@ public class KdbConnector {
 
     connectedToKdb = testConnection();
     if (!connectedToKdb) {
-      LOG.debug("*** Attempting to reconnect to Kdb server");
+      LOG.info("*** Attempting to reconnect to Kdb server");
       kdbConnection =
           new c(
               adapterProperties.getKdbHost(),
