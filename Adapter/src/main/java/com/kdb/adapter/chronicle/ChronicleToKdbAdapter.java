@@ -26,6 +26,9 @@ public class ChronicleToKdbAdapter implements Runnable {
   private AdapterProperties adapterProperties;
   private JLBH jlbh;
 
+  private long lastWriteNanos = 0;
+  private static final MIN_SEND_PAUSE_NANOS = 10_000;
+
   public ChronicleToKdbAdapter() {
     // Empty no args constructor
   }
@@ -195,6 +198,11 @@ public class ChronicleToKdbAdapter implements Runnable {
 
   private void trySend(
       AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope) {
+
+      long now = System.nanoTime();
+      if(now - lastWriteNanos) < MIN_SEND_PAUSE_NANOS)
+          return;
+
     int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
     if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
       howManyStored += envelopeDepthBeforeSave;
@@ -202,6 +210,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       // Problem => Stop running
       this.stop();
     }
+    lastWriteNanos = System.nanoTime();
   }
 
   // Benchmarking version
