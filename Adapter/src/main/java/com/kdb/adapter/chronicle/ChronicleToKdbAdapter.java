@@ -29,12 +29,9 @@ public class ChronicleToKdbAdapter implements Runnable {
   private AtomicBoolean stopped = new AtomicBoolean(false);
   private AdapterProperties adapterProperties;
   private JLBH jlbh;
-
   private long lastWriteNanos = 0;
   private static final long MIN_SEND_PAUSE_NANOS = 0;
-
   private NanoSampler writeToKDBSampler;
-
   private static final String FAILED_TO_SAVE = "Failed to save current envelope.";
 
   public ChronicleToKdbAdapter() {
@@ -192,7 +189,6 @@ public class ChronicleToKdbAdapter implements Runnable {
 
       // *********
       // If here, stopping thread
-
       // *********
       processFinish = System.nanoTime() - processStart;
       LOG.info(
@@ -209,6 +205,9 @@ public class ChronicleToKdbAdapter implements Runnable {
 
   private void trySend(
       AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope<?> envelope) {
+
+    long now = System.nanoTime();
+    if (now - lastWriteNanos < MIN_SEND_PAUSE_NANOS) return;
 
     int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
     if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
