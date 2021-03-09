@@ -23,6 +23,10 @@ public class AdapterApplication {
       final ChronicleToKdbAdapter adapter =
           new ChronicleToKdbAdapter(adapterProperties.getAdapterMessageType(), adapterProperties);
 
+      // Check application.properties for runMode...
+      // adapter.runMode=NORMAL -> normal mode processing messages on queue to kdb+
+      // adapter.runMode=KDB_BENCH -> simple testing of batched (envelope) kdb+ writes only
+
       Thread thread = new Thread(adapter);
       thread.start();
 

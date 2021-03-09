@@ -1,5 +1,6 @@
 package com.kdb.adapter.chronicle;
 
+import com.kdb.adapter.data.QuoteHelper;
 import com.kdb.adapter.factory.AdapterFactory;
 import com.kdb.adapter.messages.*;
 import com.kdb.adapter.kdb.KdbConnector;
@@ -10,8 +11,11 @@ import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.DocumentContext;
+import net.openhft.affinity.Affinity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ChronicleToKdbAdapter implements Runnable {
@@ -27,7 +31,11 @@ public class ChronicleToKdbAdapter implements Runnable {
   private JLBH jlbh;
 
   private long lastWriteNanos = 0;
-  private static final MIN_SEND_PAUSE_NANOS = 10_000;
+  private static final long MIN_SEND_PAUSE_NANOS = 0;
+
+  private NanoSampler writeToKDBSampler;
+
+  private static final String FAILED_TO_SAVE = "Failed to save current envelope.";
 
   public ChronicleToKdbAdapter() {
     // Empty no args constructor
@@ -53,7 +61,9 @@ public class ChronicleToKdbAdapter implements Runnable {
   }
 
   public void run() {
-    if (adapterProperties.getRunMode().equalsIgnoreCase("BENCH")) {
+    if (adapterProperties.getRunMode().equalsIgnoreCase("KDB_BENCH")) {
+      benchmarkKdbOnly();
+    } else if (adapterProperties.getRunMode().equalsIgnoreCase("BENCH")) {
       benchmarkProcessMessages();
     } else {
       processMessages();
@@ -105,7 +115,6 @@ public class ChronicleToKdbAdapter implements Runnable {
   public void processMessages() {
 
     long tailerIndex;
-    // long howManyStored = 0L;
     final long processStart = System.nanoTime();
     long processFinish;
 
@@ -116,6 +125,9 @@ public class ChronicleToKdbAdapter implements Runnable {
         ExcerptTailer tailer = sourceQueue.createTailer(adapterProperties.getAdapterTailerName())) {
 
       LOG.info("Starting Chronicle kdb Adapter");
+
+      if (adapterProperties.getCoreAffinity() > -1)
+        Affinity.setAffinity(adapterProperties.getCoreAffinity());
 
       // Check last index read / starting index
       tailerIndex = tailer.index();
@@ -152,7 +164,6 @@ public class ChronicleToKdbAdapter implements Runnable {
           tailerIndex = tailer.index();
 
           // TODO Need to make this work on ChronicleMessage rather than casting
-          // Check message against filter
           ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
           if ((adapterProperties.getAdapterMessageFilter().length() > 0)
               && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
@@ -197,11 +208,7 @@ public class ChronicleToKdbAdapter implements Runnable {
   }
 
   private void trySend(
-      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope) {
-
-      long now = System.nanoTime();
-      if(now - lastWriteNanos) < MIN_SEND_PAUSE_NANOS)
-          return;
+      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope<?> envelope) {
 
     int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
     if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
@@ -210,14 +217,30 @@ public class ChronicleToKdbAdapter implements Runnable {
       // Problem => Stop running
       this.stop();
     }
-    lastWriteNanos = System.nanoTime();
   }
 
   // Benchmarking version
   private void trySend(
-      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope, JLBH jlbh) {
+      AdapterProperties adapterProperties,
+      ExcerptTailer tailer,
+      KdbEnvelope<?> envelope,
+      JLBH jlbh) {
+
+    long now = System.nanoTime();
+    if ((now - lastWriteNanos) < MIN_SEND_PAUSE_NANOS) return;
+
     // Save current envelope contents...
     if (!saveCurrentEnvelope(adapterProperties, envelope, tailer, jlbh)) {
+      this.stop();
+    }
+    lastWriteNanos = System.nanoTime();
+  }
+
+  // Benchmarking kdb only version
+  private void trySend(AdapterProperties adapterProperties, KdbEnvelope<?> envelope) {
+
+    // Save current envelope contents...
+    if (!saveCurrentEnvelope(adapterProperties, envelope)) {
       this.stop();
     }
   }
@@ -228,6 +251,10 @@ public class ChronicleToKdbAdapter implements Runnable {
     long tailerIndex;
     NanoSampler readMessageSampler = jlbh.addProbe("Adapter readMessage()");
     NanoSampler convertToKDBSampler = jlbh.addProbe("Adapter convertToKDB()");
+    writeToKDBSampler = jlbh.addProbe("Adapter writeToKDB() ONLY");
+
+    if (adapterProperties.getCoreAffinity() > -1)
+      Affinity.setAffinity(adapterProperties.getCoreAffinity());
 
     // 1. Connect to Chronicle Queue source
     // 2. Create "tailer" to listen for messages
@@ -317,8 +344,64 @@ public class ChronicleToKdbAdapter implements Runnable {
     }
   }
 
+  // Benchmarking version
+  public void benchmarkKdbOnly() {
+
+    try {
+
+      LOG.info("Starting kdb only Adapter");
+
+      // Use AdapterFactory to return correct implementation classes based on message type
+      AdapterFactory adapterFactory = new AdapterFactory();
+
+      // Create new kdbEnvelope instance from factory for this adapter / config
+      final KdbEnvelope envelope =
+          adapterFactory.getKdbEnvelope(
+              this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
+
+      QuoteHelper helper = new QuoteHelper();
+      ArrayList<KdbQuoteMessage> ar = new ArrayList<>();
+      for (int i = 0; i < 1_000_000; i++) {
+        KdbQuoteMessage kdbMessage = helper.generateKdbQuoteMsg();
+        kdbMessage.setTs(System.nanoTime());
+        ar.add(kdbMessage);
+      }
+
+      howManyRead = 0;
+      LOG.info("Starting loop");
+      long writeSamplerBefore = System.nanoTime();
+
+      // Loop until stopped...
+      while (!stopped.get() && howManyRead < 1_000_000) {
+
+        KdbQuoteMessage kdbMessage = ar.get(howManyRead);
+        // 5. Add kdb msg to current kdb envelope
+
+        envelope.addToEnvelope(kdbMessage, 1L);
+
+        howManyRead++;
+
+        // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
+
+        if (envelope.isFull()) {
+          // Store
+          trySend(adapterProperties, envelope);
+        }
+      }
+      if (!envelope.isEmpty()) {
+        trySend(adapterProperties, envelope);
+      }
+      LOG.info("kdb only test took: {} seconds", (System.nanoTime() - writeSamplerBefore) / 1e9);
+
+    } catch (Exception ex) {
+      LOG.error("Error in benchmarkKdbOnly() -- {}", ex.toString());
+    } finally {
+      tidyUp();
+    }
+  }
+
   private boolean saveCurrentEnvelope(
-      AdapterProperties adapterProperties, KdbEnvelope envelope, ExcerptTailer tailer) {
+      AdapterProperties adapterProperties, KdbEnvelope<?> envelope, ExcerptTailer tailer) {
 
     boolean retVal = true;
 
@@ -332,7 +415,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       envelope.reset();
       howManyRead = 0;
     } else {
-      LOG.info("Failed to save current envelope.");
+      LOG.info(FAILED_TO_SAVE);
       // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
       LOG.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
       tailer.moveToIndex(envelope.getFirstIndex());
@@ -342,11 +425,36 @@ public class ChronicleToKdbAdapter implements Runnable {
     return retVal;
   }
 
+  // Benchmarking kdb only version
   private boolean saveCurrentEnvelope(
-      AdapterProperties adapterProperties, KdbEnvelope envelope, ExcerptTailer tailer, JLBH jlbh) {
+      AdapterProperties adapterProperties, KdbEnvelope<?> envelope) {
 
     boolean retVal = true;
-    NanoSampler writeToKDBSampler = jlbh.addProbe("Adapter writeToKDB() ONLY");
+
+    if (kdbConnector == null) {
+      kdbConnector = new KdbConnector(adapterProperties);
+    }
+
+    if (kdbConnector.saveEnvelope(adapterProperties, envelope)) {
+
+      // 7. Envelope contents saved. Re-set envelope...
+      envelope.reset();
+
+    } else {
+      LOG.info(FAILED_TO_SAVE);
+      retVal = false;
+    }
+
+    return retVal;
+  }
+
+  private boolean saveCurrentEnvelope(
+      AdapterProperties adapterProperties,
+      KdbEnvelope<?> envelope,
+      ExcerptTailer tailer,
+      JLBH jlbh) {
+
+    boolean retVal = true;
 
     if (kdbConnector == null) {
       kdbConnector = new KdbConnector(adapterProperties);
@@ -374,7 +482,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       envelope.reset();
       howManyRead = 0;
     } else {
-      LOG.info("Failed to save current envelope.");
+      LOG.info(FAILED_TO_SAVE);
       // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
       LOG.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
       tailer.moveToIndex(envelope.getFirstIndex());

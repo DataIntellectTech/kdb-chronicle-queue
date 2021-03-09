@@ -30,8 +30,8 @@ public class AdapterBenchmark implements JLBHTask {
     JLBHOptions lth =
         new JLBHOptions()
             .warmUpIterations(50_000)
-            .iterations(100_000)
-            .throughput(10_000)
+            .iterations(300_000)
+            .throughput(30_000)
             .recordOSJitter(false)
             // disable as otherwise single GC event skews results heavily
             .accountForCoordinatedOmmission(false)
@@ -44,6 +44,9 @@ public class AdapterBenchmark implements JLBHTask {
   @Override
   public void init(JLBH jlbh) {
     try {
+
+      // Check application.properties for runMode...
+      // adapter.runMode=BENCH -> benchmarking mode, generates its own messages and writes to kdb+
 
       final PropertyFileLoader properties = new PropertyFileLoader();
       final Properties props = properties.getPropValues("application.properties");

@@ -9,6 +9,7 @@ import java.util.Properties;
 public class AdapterProperties {
 
   private String runMode;
+  private int coreAffinity;
   private String chronicleSource;
   private String adapterTailerName;
   private String adapterMessageType;
@@ -25,6 +26,7 @@ public class AdapterProperties {
   public AdapterProperties(Properties props) {
 
     setRunMode(props.getProperty("adapter.runMode", "NORMAL"));
+    setCoreAffinity(Integer.parseInt(props.getProperty("adapter.coreAffinity", "-1")));
     setChronicleSource(props.getProperty("chronicle.source"));
     setAdapterTailerName(props.getProperty("chronicle.tailerName"));
     setAdapterMessageType(props.getProperty("adapter.messageType"));
