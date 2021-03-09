@@ -10,6 +10,7 @@ import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.DocumentContext;
+import net.openhft.affinity.Affinity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,7 +28,9 @@ public class ChronicleToKdbAdapter implements Runnable {
   private JLBH jlbh;
 
   private long lastWriteNanos = 0;
-  private static final MIN_SEND_PAUSE_NANOS = 10_000;
+  private static final long MIN_SEND_PAUSE_NANOS = 0;
+
+  private NanoSampler writeToKDBSampler;
 
   public ChronicleToKdbAdapter() {
     // Empty no args constructor
@@ -200,7 +203,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope) {
 
       long now = System.nanoTime();
-      if(now - lastWriteNanos) < MIN_SEND_PAUSE_NANOS)
+      if(now - lastWriteNanos < MIN_SEND_PAUSE_NANOS)
           return;
 
     int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
@@ -216,10 +219,17 @@ public class ChronicleToKdbAdapter implements Runnable {
   // Benchmarking version
   private void trySend(
       AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope, JLBH jlbh) {
+
+    long now = System.nanoTime();
+    if(now - lastWriteNanos < MIN_SEND_PAUSE_NANOS)
+        return;
+
     // Save current envelope contents...
     if (!saveCurrentEnvelope(adapterProperties, envelope, tailer, jlbh)) {
       this.stop();
     }
+
+    lastWriteNanos = System.nanoTime();
   }
 
   // Benchmarking version
@@ -228,6 +238,9 @@ public class ChronicleToKdbAdapter implements Runnable {
     long tailerIndex;
     NanoSampler readMessageSampler = jlbh.addProbe("Adapter readMessage()");
     NanoSampler convertToKDBSampler = jlbh.addProbe("Adapter convertToKDB()");
+    writeToKDBSampler = jlbh.addProbe("Adapter writeToKDB() ONLY");
+
+    Affinity.setAffinity(2);
 
     // 1. Connect to Chronicle Queue source
     // 2. Create "tailer" to listen for messages
@@ -346,7 +359,6 @@ public class ChronicleToKdbAdapter implements Runnable {
       AdapterProperties adapterProperties, KdbEnvelope envelope, ExcerptTailer tailer, JLBH jlbh) {
 
     boolean retVal = true;
-    NanoSampler writeToKDBSampler = jlbh.addProbe("Adapter writeToKDB() ONLY");
 
     if (kdbConnector == null) {
       kdbConnector = new KdbConnector(adapterProperties);
