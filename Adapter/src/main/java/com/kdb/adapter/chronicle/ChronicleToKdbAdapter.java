@@ -1,5 +1,6 @@
 package com.kdb.adapter.chronicle;
 
+import com.kdb.adapter.data.QuoteHelper;
 import com.kdb.adapter.factory.AdapterFactory;
 import com.kdb.adapter.messages.*;
 import com.kdb.adapter.kdb.KdbConnector;
@@ -10,24 +11,28 @@ import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.DocumentContext;
+import net.openhft.affinity.Affinity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ChronicleToKdbAdapter {
+public class ChronicleToKdbAdapter implements Runnable {
 
   private KdbConnector kdbConnector;
   private static final Logger LOG = LoggerFactory.getLogger(ChronicleToKdbAdapter.class);
   private MessageTypes.AdapterMessageTypes messageType;
-  int howManyRead;
+  private int howManyRead;
+  private long howManyStored = 0L;
 
-  public void setMessageType(MessageTypes.AdapterMessageTypes msgType) {
-    this.messageType = msgType;
-  }
-
-  public MessageTypes.AdapterMessageTypes getMessageType() {
-    return this.messageType;
-  }
+  private AtomicBoolean stopped = new AtomicBoolean(false);
+  private AdapterProperties adapterProperties;
+  private JLBH jlbh;
+  private long lastWriteNanos = 0;
+  private static final long MIN_SEND_PAUSE_NANOS = 0;
+  private NanoSampler writeToKDBSampler;
+  private static final String FAILED_TO_SAVE = "Failed to save current envelope.";
 
   public ChronicleToKdbAdapter() {
     // Empty no args constructor
@@ -35,6 +40,47 @@ public class ChronicleToKdbAdapter {
 
   public ChronicleToKdbAdapter(MessageTypes.AdapterMessageTypes type) {
     this.setMessageType(type);
+  }
+
+  public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props) {
+    this.setAdapterMessageType(adapterMessageType);
+    this.setAdapterProperties(props);
+  }
+
+  public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props, JLBH jlbh) {
+    this.setAdapterMessageType(adapterMessageType);
+    this.setAdapterProperties(props);
+    this.setJLBH(jlbh);
+  }
+
+  public void stop() {
+    stopped.set(true);
+  }
+
+  public void run() {
+    if (adapterProperties.getRunMode().equalsIgnoreCase("KDB_BENCH")) {
+      benchmarkKdbOnly();
+    } else if (adapterProperties.getRunMode().equalsIgnoreCase("BENCH")) {
+      benchmarkProcessMessages();
+    } else {
+      processMessages();
+    }
+  }
+
+  public void setAdapterProperties(AdapterProperties props) {
+    this.adapterProperties = props;
+  }
+
+  public void setMessageType(MessageTypes.AdapterMessageTypes msgType) {
+    this.messageType = msgType;
+  }
+
+  public void setJLBH(JLBH jlbh) {
+    this.jlbh = jlbh;
+  }
+
+  public MessageTypes.AdapterMessageTypes getMessageType() {
+    return this.messageType;
   }
 
   public boolean setAdapterMessageType(String messageType) {
@@ -63,40 +109,9 @@ public class ChronicleToKdbAdapter {
     LOG.debug("Resources cleaned up");
   }
 
-  public int checkMessages(AdapterProperties adapterProperties) {
+  public void processMessages() {
 
-    try (SingleChronicleQueue queue =
-            SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
-        ExcerptTailer tailer = queue.createTailer(adapterProperties.getAdapterTailerName())) {
-      LOG.info("Tailer index: {}", tailer.index());
-      long count = 0L;
-      ChronicleQuoteMsg chronicleMessage;
-      long start = System.nanoTime();
-      for (; ; ) {
-        try (DocumentContext dc = tailer.readingDocument()) {
-          if (!dc.isPresent()) break;
-
-          chronicleMessage =
-              (ChronicleQuoteMsg)
-                  dc.wire().read(adapterProperties.getAdapterMessageType()).object();
-          count++;
-          LOG.debug("Message: {}", chronicleMessage);
-        }
-      }
-      long finish = System.nanoTime() - start;
-      LOG.info("TIMING: Read {} msgs -> ChronicleQuoteMsg obj in {} seconds", count, finish / 1e9);
-      LOG.info("No more messages");
-    }
-    return 0;
-  }
-
-  public int processMessages(AdapterProperties adapterProperties) {
-    // ret = 0 -- all ok but nothing (left) to process
-    // ret = -1 -- problem running
-
-    int ret = 0;
     long tailerIndex;
-    long howManyStored = 0L;
     final long processStart = System.nanoTime();
     long processFinish;
 
@@ -107,6 +122,9 @@ public class ChronicleToKdbAdapter {
         ExcerptTailer tailer = sourceQueue.createTailer(adapterProperties.getAdapterTailerName())) {
 
       LOG.info("Starting Chronicle kdb Adapter");
+
+      if (adapterProperties.getCoreAffinity() > -1)
+        Affinity.setAffinity(adapterProperties.getCoreAffinity());
 
       // Check last index read / starting index
       tailerIndex = tailer.index();
@@ -120,25 +138,34 @@ public class ChronicleToKdbAdapter {
           adapterFactory.getKdbEnvelope(
               this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
-      // Loop while there are messages...
-      for (; ; ) {
+      // Loop until stopped...
+      while (!stopped.get()) {
 
         try (DocumentContext dc = tailer.readingDocument()) {
 
-          if (!dc.isPresent()) break;
+          if (!dc.isPresent()) {
+            // if nothing new in the queue, try sending anything currently in the envelope
+            if (!envelope.isEmpty()) {
+              trySend(adapterProperties, tailer, envelope);
+            }
+            continue;
+          }
 
           // 3. read message data ( -> chronicle obj)
-          // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "quote"
+          // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "QUOTE"
 
           // Use the right read method from the adapterFactory based on type...
           ChronicleMessage chronicleMessage =
-              adapterFactory.readChronicleMessage(
-                  this.getMessageType(), dc, adapterProperties.getAdapterMessageType());
-
-          // TODO check symbol and if match process else ignore.
-          // if(symbol == SYM) continue;
+              adapterFactory.readChronicleMessage(this.getMessageType(), dc);
 
           tailerIndex = tailer.index();
+
+          // TODO Need to make this work on ChronicleMessage rather than casting
+          ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
+          if ((adapterProperties.getAdapterMessageFilter().length() > 0)
+              && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
+            continue;
+          }
 
           howManyRead++;
 
@@ -152,77 +179,81 @@ public class ChronicleToKdbAdapter {
 
           envelope.addToEnvelope(kdbMessage, tailerIndex);
 
-          // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
+          // 6. When envelope / batch full, send data to destination ( -> kdb)
 
           if (envelope.isFull()) {
-            if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
-              howManyStored += adapterProperties.getKdbEnvelopeSize();
-            } else {
-              // There was a problem saving...
-              ret = -1;
-            }
+            trySend(adapterProperties, tailer, envelope);
           }
         }
       }
 
       // *********
-      // If here, nothing left on queue, check if there are any messages to store...
-      if (envelope.getEnvelopeDepth() > 0) {
-
-        // Save current envelope contents...
-        int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
-        if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
-          howManyStored += envelopeDepthBeforeSave;
-        } else {
-          // There was a problem saving...
-          ret = -1;
-        }
-
-      } else {
-        ret = 0;
-      }
+      // If here, stopping thread
       // *********
       processFinish = System.nanoTime() - processStart;
       LOG.info(
           "Stopping Chronicle kdb Adapter. {} msgs stored in this cycle ({} seconds)",
           howManyStored,
           processFinish / 1e9);
-      return ret;
 
     } catch (Exception ex) {
       LOG.error("Error in processMessages() -- {}", ex.toString());
-      return -1;
+    } finally {
+      tidyUp();
+    }
+  }
+
+  private void trySend(
+      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope<?> envelope) {
+
+    long now = System.nanoTime();
+    if (now - lastWriteNanos < MIN_SEND_PAUSE_NANOS) return;
+
+    int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
+    if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
+      howManyStored += envelopeDepthBeforeSave;
+    } else {
+      // Problem => Stop running
+      this.stop();
     }
   }
 
   // Benchmarking version
-  private int trySend(
-      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope envelope, JLBH jlbh) {
-    if (envelope.getEnvelopeDepth() > 0) {
+  private void trySend(
+      AdapterProperties adapterProperties,
+      ExcerptTailer tailer,
+      KdbEnvelope<?> envelope,
+      JLBH jlbh) {
 
-      // Save current envelope contents...
-      int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
+    long now = System.nanoTime();
+    if ((now - lastWriteNanos) < MIN_SEND_PAUSE_NANOS) return;
 
-      if (saveCurrentEnvelope(adapterProperties, envelope, tailer, jlbh)) {
-        return envelopeDepthBeforeSave;
-      }
+    // Save current envelope contents...
+    if (!saveCurrentEnvelope(adapterProperties, envelope, tailer, jlbh)) {
+      this.stop();
     }
-
-    return 0;
+    lastWriteNanos = System.nanoTime();
   }
 
-  public void processMessages(AdapterProperties adapterProperties, JLBH jlbh) {
-    // ret = 0 -- all ok but nothing (left) to process
-    // ret = -1 -- problem running
+  // Benchmarking kdb only version
+  private void trySend(AdapterProperties adapterProperties, KdbEnvelope<?> envelope) {
 
-    int ret = 0;
+    // Save current envelope contents...
+    if (!saveCurrentEnvelope(adapterProperties, envelope)) {
+      this.stop();
+    }
+  }
+
+  // Benchmarking version
+  public void benchmarkProcessMessages() {
+
     long tailerIndex;
-    long howManyStored = 0L;
-    final long processStart = System.nanoTime();
-    long processFinish;
-
     NanoSampler readMessageSampler = jlbh.addProbe("Adapter readMessage()");
     NanoSampler convertToKDBSampler = jlbh.addProbe("Adapter convertToKDB()");
+    writeToKDBSampler = jlbh.addProbe("Adapter writeToKDB() ONLY");
+
+    if (adapterProperties.getCoreAffinity() > -1)
+      Affinity.setAffinity(adapterProperties.getCoreAffinity());
 
     // 1. Connect to Chronicle Queue source
     // 2. Create "tailer" to listen for messages
@@ -244,39 +275,41 @@ public class ChronicleToKdbAdapter {
           adapterFactory.getKdbEnvelope(
               this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
-      // Loop indefinitely
-      // In practice there would be a mechanism to set the stopped flag to true externally
-      AtomicBoolean stopped = new AtomicBoolean(false);
+      // Loop until stopped...
       while (!stopped.get()) {
 
         try (DocumentContext dc = tailer.readingDocument()) {
 
           if (!dc.isPresent()) {
             // if nothing new in the queue, try sending anything currently in the envelope
-
-            // Store this envelope
-            howManyStored += trySend(adapterProperties, tailer, envelope, jlbh);
-
+            if (!envelope.isEmpty()) {
+              trySend(adapterProperties, tailer, envelope, jlbh);
+            }
             continue;
           }
 
           // 3. read message data ( -> chronicle obj)
-          // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "quote"
+          // Only read messages of type adapterProperties.getAdapterMessageType() e.g. "QUOTE"
 
           // Use the right read method from the adapterFactory based on type...
           ChronicleMessage chronicleMessage =
-              adapterFactory.readChronicleMessage(
-                  this.getMessageType(), dc, adapterProperties.getAdapterMessageType());
+              adapterFactory.readChronicleMessage(this.getMessageType(), dc);
 
-          // Read a message so capture timestamp and add to probe
+          // Have read a message so capture timestamp and add to probe
           long readSamplerStart = System.nanoTime();
+          // TODO Need to make this work on ChronicleMessage rather than casting
           ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
           readMessageSampler.sampleNanos(readSamplerStart - msg.getTs());
 
-          // TODO check symbol and if match process else ignore.
-          // if(symbol == SYM) continue;
-
+          // Increment current "read up to index"
           tailerIndex = tailer.index();
+
+          // Check if message to be processed. Check against filter (if there is a filter specified
+          // in props)
+          if ((adapterProperties.getAdapterMessageFilter().length() > 0)
+              && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
+            continue;
+          }
 
           howManyRead++;
 
@@ -299,15 +332,75 @@ public class ChronicleToKdbAdapter {
 
           if (envelope.isFull()) {
             // Store
-            howManyStored += trySend(adapterProperties, tailer, envelope, jlbh);
+            trySend(adapterProperties, tailer, envelope, jlbh);
           }
         }
       }
+    } catch (Exception ex) {
+      LOG.error("Error in benchmarkProcessMessages() -- {}", ex.toString());
+    } finally {
+      tidyUp();
+    }
+  }
+
+  // Benchmarking version
+  public void benchmarkKdbOnly() {
+
+    try {
+
+      LOG.info("Starting kdb only Adapter");
+
+      // Use AdapterFactory to return correct implementation classes based on message type
+      AdapterFactory adapterFactory = new AdapterFactory();
+
+      // Create new kdbEnvelope instance from factory for this adapter / config
+      final KdbEnvelope envelope =
+          adapterFactory.getKdbEnvelope(
+              this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
+
+      QuoteHelper helper = new QuoteHelper();
+      ArrayList<KdbQuoteMessage> ar = new ArrayList<>();
+      for (int i = 0; i < 1_000_000; i++) {
+        KdbQuoteMessage kdbMessage = helper.generateKdbQuoteMsg();
+        kdbMessage.setTs(System.nanoTime());
+        ar.add(kdbMessage);
+      }
+
+      howManyRead = 0;
+      LOG.info("Starting loop");
+      long writeSamplerBefore = System.nanoTime();
+
+      // Loop until stopped...
+      while (!stopped.get() && howManyRead < 1_000_000) {
+
+        KdbQuoteMessage kdbMessage = ar.get(howManyRead);
+        // 5. Add kdb msg to current kdb envelope
+
+        envelope.addToEnvelope(kdbMessage, 1L);
+
+        howManyRead++;
+
+        // 6. Every $kdbEnvelopeSize messages, send data to destination ( -> kdb)
+
+        if (envelope.isFull()) {
+          // Store
+          trySend(adapterProperties, envelope);
+        }
+      }
+      if (!envelope.isEmpty()) {
+        trySend(adapterProperties, envelope);
+      }
+      LOG.info("kdb only test took: {} seconds", (System.nanoTime() - writeSamplerBefore) / 1e9);
+
+    } catch (Exception ex) {
+      LOG.error("Error in benchmarkKdbOnly() -- {}", ex.toString());
+    } finally {
+      tidyUp();
     }
   }
 
   private boolean saveCurrentEnvelope(
-      AdapterProperties adapterProperties, KdbEnvelope envelope, ExcerptTailer tailer) {
+      AdapterProperties adapterProperties, KdbEnvelope<?> envelope, ExcerptTailer tailer) {
 
     boolean retVal = true;
 
@@ -321,7 +414,7 @@ public class ChronicleToKdbAdapter {
       envelope.reset();
       howManyRead = 0;
     } else {
-      LOG.info("Failed to save current envelope.");
+      LOG.info(FAILED_TO_SAVE);
       // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
       LOG.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
       tailer.moveToIndex(envelope.getFirstIndex());
@@ -331,8 +424,9 @@ public class ChronicleToKdbAdapter {
     return retVal;
   }
 
+  // Benchmarking kdb only version
   private boolean saveCurrentEnvelope(
-      AdapterProperties adapterProperties, KdbEnvelope envelope, ExcerptTailer tailer, JLBH jlbh) {
+      AdapterProperties adapterProperties, KdbEnvelope<?> envelope) {
 
     boolean retVal = true;
 
@@ -342,10 +436,43 @@ public class ChronicleToKdbAdapter {
 
     if (kdbConnector.saveEnvelope(adapterProperties, envelope)) {
 
-      // Add benchmark samples for each message in Envelope here
+      // 7. Envelope contents saved. Re-set envelope...
+      envelope.reset();
+
+    } else {
+      LOG.info(FAILED_TO_SAVE);
+      retVal = false;
+    }
+
+    return retVal;
+  }
+
+  private boolean saveCurrentEnvelope(
+      AdapterProperties adapterProperties,
+      KdbEnvelope<?> envelope,
+      ExcerptTailer tailer,
+      JLBH jlbh) {
+
+    boolean retVal = true;
+
+    if (kdbConnector == null) {
+      kdbConnector = new KdbConnector(adapterProperties);
+    }
+
+    // Capture timestamp before writing to kdb
+    long writeSamplerBefore = System.nanoTime();
+
+    if (kdbConnector.saveEnvelope(adapterProperties, envelope)) {
+
+      // Saved, capture timestamp
       long kdbUpdatedTimeStamp = System.nanoTime();
+
+      // Add sample for batch write on its own
+      writeToKDBSampler.sampleNanos(kdbUpdatedTimeStamp - writeSamplerBefore);
+
+      // Add benchmark samples for each message in Envelope here
       // Iterate through envelope and get diff from message creation ts to kdbUpdatedTimeStamp
-      // add sample
+      // add sample i.e. End to end for each message
       for (long msgCreateTs : envelope.getTs()) {
         jlbh.sample(kdbUpdatedTimeStamp - msgCreateTs);
       }
@@ -354,7 +481,7 @@ public class ChronicleToKdbAdapter {
       envelope.reset();
       howManyRead = 0;
     } else {
-      LOG.info("Failed to save current envelope.");
+      LOG.info(FAILED_TO_SAVE);
       // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
       LOG.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
       tailer.moveToIndex(envelope.getFirstIndex());

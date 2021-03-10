@@ -28,10 +28,11 @@ public class QuoteHelper {
     symbolsAndExchanges.add(buildListOfSymbolExchangeAndPrice("VOD.L", "150", "156", "XLON"));
     symbolsAndExchanges.add(buildListOfSymbolExchangeAndPrice("HEIN.AS", "100", "105", "XAMS"));
     symbolsAndExchanges.add(buildListOfSymbolExchangeAndPrice("JUVE.MI", "1230", "1240", "XMIC"));
-    entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
   }
 
   public ChronicleQuoteMsg generateQuoteMsg() {
+
+    entry = symbolsAndExchanges.get(new Random().nextInt(symbolsAndExchanges.size()));
 
     int randomBidPrice =
         getRandomIntFromRange.apply(Integer.parseInt(entry.get(1)), Integer.parseInt(entry.get(2)));

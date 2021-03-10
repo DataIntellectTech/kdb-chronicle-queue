@@ -1,0 +1,25 @@
+FROM ubuntu:18.04
+
+RUN apt-get update
+RUN apt-get upgrade -y
+RUN apt-get install -y strace kafkacat inetutils-ping telnet net-tools dnsutils curl wget rlwrap
+
+RUN dpkg --add-architecture i386
+RUN apt-get update
+RUN apt-get install -y libc6:i386 libncurses5:i386 libstdc++6:i386
+
+RUN mkdir -p /docker/
+
+ENV PATH=$PATH:/docker/q/l32
+ENV QHOME /docker/q
+
+ADD ./q /docker/q
+COPY ./lib /docker/lib
+
+RUN chmod +x /docker/q/l32/q
+
+CMD ["docker/q/l32/q", "docker/lib/dummytp.q", "-p", "5000", "-u", "1"]
+
+EXPOSE 5000
+
+VOLUME /tmp

@@ -24,6 +24,18 @@ public class KdbQuoteMessage implements KdbMessage {
   private String bex;
   private String aex;
 
+  public KdbQuoteMessage(final Long ts, final LocalDateTime time, final String sym, final double bid, final double bsize, final double ask, final double assize, final String bex, final String aex){
+    this.ts = ts;
+    this.time = time;
+    this.sym = sym;
+    this.bid = bid;
+    this.bsize = bsize;
+    this.ask = ask;
+    this.assize = assize;
+    this.bex = bex;
+    this.aex = aex;
+  }
+
   @Override
   public String toString() {
     // Change to just return formatted kdb data

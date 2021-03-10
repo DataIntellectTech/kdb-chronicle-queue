@@ -30,8 +30,8 @@ public class AdapterBenchmark implements JLBHTask {
     JLBHOptions lth =
         new JLBHOptions()
             .warmUpIterations(50_000)
-            .iterations(1_000_000)
-            .throughput(100_000)
+            .iterations(300_000)
+            .throughput(30_000)
             .recordOSJitter(false)
             // disable as otherwise single GC event skews results heavily
             .accountForCoordinatedOmmission(false)
@@ -45,24 +45,24 @@ public class AdapterBenchmark implements JLBHTask {
   public void init(JLBH jlbh) {
     try {
 
+      // Check application.properties for runMode...
+      // adapter.runMode=BENCH -> benchmarking mode, generates its own messages and writes to kdb+
+
       final PropertyFileLoader properties = new PropertyFileLoader();
       final Properties props = properties.getPropValues("application.properties");
       final AdapterProperties adapterProperties = new AdapterProperties(props);
-      final ChronicleToKdbAdapter adapter = new ChronicleToKdbAdapter();
       final String queueName = adapterProperties.getChronicleSource();
+      final ChronicleToKdbAdapter adapter =
+          new ChronicleToKdbAdapter(
+              adapterProperties.getAdapterMessageType(), adapterProperties, jlbh);
 
       IOTools.deleteDirWithFiles(queueName, 10);
 
       sourceQueue = single(queueName).build();
       appender = sourceQueue.acquireAppender();
 
-      adapter.setAdapterMessageType(adapterProperties.getAdapterMessageType());
-
-      new Thread(
-              () -> {
-                adapter.processMessages(adapterProperties, jlbh);
-              })
-          .start();
+      Thread thread = new Thread(adapter);
+      thread.start();
 
     } catch (Exception ex) {
       LOG.error("Error: {}", ex.toString());
@@ -78,7 +78,7 @@ public class AdapterBenchmark implements JLBHTask {
     ChronicleQuoteMsg writeQuote = quoteHelper.generateQuoteMsg();
     writeQuote.ts = startTimeNS;
     try (DocumentContext dc = appender.writingDocument()) {
-      dc.wire().write("quote").object(writeQuote);
+      dc.wire().write("QUOTE").object(writeQuote);
     }
   }
 

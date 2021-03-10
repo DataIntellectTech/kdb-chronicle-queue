@@ -8,9 +8,12 @@ import java.util.Properties;
 @Setter
 public class AdapterProperties {
 
+  private String runMode;
+  private int coreAffinity;
   private String chronicleSource;
   private String adapterTailerName;
   private String adapterMessageType;
+  private String adapterMessageFilter;
   private Long adapterWaitTimeWhenNoMsgs;
   private String kdbHost;
   private int kdbPort;
@@ -22,9 +25,12 @@ public class AdapterProperties {
 
   public AdapterProperties(Properties props) {
 
+    setRunMode(props.getProperty("adapter.runMode", "NORMAL"));
+    setCoreAffinity(Integer.parseInt(props.getProperty("adapter.coreAffinity", "-1")));
     setChronicleSource(props.getProperty("chronicle.source"));
     setAdapterTailerName(props.getProperty("chronicle.tailerName"));
     setAdapterMessageType(props.getProperty("adapter.messageType"));
+    setAdapterMessageFilter(props.getProperty("adapter.messageFilter", ""));
     setAdapterWaitTimeWhenNoMsgs(
         Long.parseLong(props.getProperty("adapter.waitTime.whenNoMsgs", "10000")));
     setKdbHost(props.getProperty("kdb.host", "localhost"));
