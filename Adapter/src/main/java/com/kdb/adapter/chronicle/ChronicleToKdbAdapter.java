@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ChronicleToKdbAdapter implements Runnable {
 
   private KdbConnector kdbConnector;
-  private static final Logger LOG = LoggerFactory.getLogger(ChronicleToKdbAdapter.class);
+  private static final Logger log = LoggerFactory.getLogger(ChronicleToKdbAdapter.class);
   private MessageTypes.AdapterMessageTypes messageType;
   private int howManyRead;
   private long howManyStored = 0L;
@@ -91,7 +91,7 @@ public class ChronicleToKdbAdapter implements Runnable {
     } else if (messageType.equalsIgnoreCase("TRADE")) {
       this.setMessageType(MessageTypes.AdapterMessageTypes.TRADE);
     } else {
-      LOG.error("Adapter type ({}) not configured yet. Check config.", messageType);
+      log.error("Adapter type ({}) not configured yet. Check config.", messageType);
       ret = false;
     }
     return ret;
@@ -104,9 +104,9 @@ public class ChronicleToKdbAdapter implements Runnable {
         kdbConnector.closeConnection();
       }
     } catch (Exception e) {
-      LOG.error("Exception can be ignored here..{}", e.toString());
+      log.error("Exception can be ignored here..{}", e.toString());
     }
-    LOG.debug("Resources cleaned up");
+    log.debug("Resources cleaned up");
   }
 
   public void processMessages() {
@@ -121,14 +121,14 @@ public class ChronicleToKdbAdapter implements Runnable {
             SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
         ExcerptTailer tailer = sourceQueue.createTailer(adapterProperties.getAdapterTailerName())) {
 
-      LOG.info("Starting Chronicle kdb Adapter");
+      log.info("Starting Chronicle kdb Adapter");
 
       if (adapterProperties.getCoreAffinity() > -1)
         Affinity.setAffinity(adapterProperties.getCoreAffinity());
 
       // Check last index read / starting index
       tailerIndex = tailer.index();
-      LOG.info("Tailer starting at index: {}", tailerIndex);
+      log.info("Tailer starting at index: {}", tailerIndex);
 
       // Use AdapterFactory to return correct implementation classes based on message type
       AdapterFactory adapterFactory = new AdapterFactory();
@@ -161,10 +161,22 @@ public class ChronicleToKdbAdapter implements Runnable {
           tailerIndex = tailer.index();
 
           // TODO Need to make this work on ChronicleMessage rather than casting
-          ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
-          if ((adapterProperties.getAdapterMessageFilter().length() > 0)
-              && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
-            continue;
+
+          if (this.messageType.equals(MessageTypes.AdapterMessageTypes.QUOTE)) {
+            ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
+            if ((adapterProperties.getAdapterMessageFilter().length() > 0)
+                && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
+              continue;
+            }
+          } else if (this.messageType.equals(MessageTypes.AdapterMessageTypes.TRADE)) {
+            ChronicleTradeMsg msg = (ChronicleTradeMsg) chronicleMessage;
+            if ((adapterProperties.getAdapterMessageFilter().length() > 0)
+                && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
+              continue;
+            }
+          } else {
+            log.error("Processing unavailable message type. Exiting.");
+            break;
           }
 
           howManyRead++;
@@ -191,13 +203,13 @@ public class ChronicleToKdbAdapter implements Runnable {
       // If here, stopping thread
       // *********
       processFinish = System.nanoTime() - processStart;
-      LOG.info(
+      log.info(
           "Stopping Chronicle kdb Adapter. {} msgs stored in this cycle ({} seconds)",
           howManyStored,
           processFinish / 1e9);
 
     } catch (Exception ex) {
-      LOG.error("Error in processMessages() -- {}", ex.toString());
+      log.error("Error in processMessages() -- {}", ex.toString());
     } finally {
       tidyUp();
     }
@@ -261,11 +273,11 @@ public class ChronicleToKdbAdapter implements Runnable {
             SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
         ExcerptTailer tailer = sourceQueue.createTailer(adapterProperties.getAdapterTailerName())) {
 
-      LOG.info("Starting Chronicle kdb Adapter");
+      log.info("Starting Chronicle kdb Adapter");
 
       // Check last index read / starting index
       tailerIndex = tailer.index();
-      LOG.info("Tailer starting at index: {}", tailerIndex);
+      log.info("Tailer starting at index: {}", tailerIndex);
 
       // Use AdapterFactory to return correct implementation classes based on message type
       AdapterFactory adapterFactory = new AdapterFactory();
@@ -337,7 +349,7 @@ public class ChronicleToKdbAdapter implements Runnable {
         }
       }
     } catch (Exception ex) {
-      LOG.error("Error in benchmarkProcessMessages() -- {}", ex.toString());
+      log.error("Error in benchmarkProcessMessages() -- {}", ex.toString());
     } finally {
       tidyUp();
     }
@@ -348,7 +360,7 @@ public class ChronicleToKdbAdapter implements Runnable {
 
     try {
 
-      LOG.info("Starting kdb only Adapter");
+      log.info("Starting kdb only Adapter");
 
       // Use AdapterFactory to return correct implementation classes based on message type
       AdapterFactory adapterFactory = new AdapterFactory();
@@ -367,7 +379,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       }
 
       howManyRead = 0;
-      LOG.info("Starting loop");
+      log.info("Starting loop");
       long writeSamplerBefore = System.nanoTime();
 
       // Loop until stopped...
@@ -390,10 +402,10 @@ public class ChronicleToKdbAdapter implements Runnable {
       if (!envelope.isEmpty()) {
         trySend(adapterProperties, envelope);
       }
-      LOG.info("kdb only test took: {} seconds", (System.nanoTime() - writeSamplerBefore) / 1e9);
+      log.info("kdb only test took: {} seconds", (System.nanoTime() - writeSamplerBefore) / 1e9);
 
     } catch (Exception ex) {
-      LOG.error("Error in benchmarkKdbOnly() -- {}", ex.toString());
+      log.error("Error in benchmarkKdbOnly() -- {}", ex.toString());
     } finally {
       tidyUp();
     }
@@ -414,9 +426,9 @@ public class ChronicleToKdbAdapter implements Runnable {
       envelope.reset();
       howManyRead = 0;
     } else {
-      LOG.info(FAILED_TO_SAVE);
+      log.info(FAILED_TO_SAVE);
       // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
-      LOG.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
+      log.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
       tailer.moveToIndex(envelope.getFirstIndex());
       retVal = false;
     }
@@ -440,7 +452,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       envelope.reset();
 
     } else {
-      LOG.info(FAILED_TO_SAVE);
+      log.info(FAILED_TO_SAVE);
       retVal = false;
     }
 
@@ -481,9 +493,9 @@ public class ChronicleToKdbAdapter implements Runnable {
       envelope.reset();
       howManyRead = 0;
     } else {
-      LOG.info(FAILED_TO_SAVE);
+      log.info(FAILED_TO_SAVE);
       // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
-      LOG.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
+      log.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
       tailer.moveToIndex(envelope.getFirstIndex());
       retVal = false;
     }

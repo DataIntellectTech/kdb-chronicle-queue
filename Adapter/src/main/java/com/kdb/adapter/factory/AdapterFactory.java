@@ -1,6 +1,7 @@
 package com.kdb.adapter.factory;
 
 import com.kdb.adapter.mapper.QuoteMapper;
+import com.kdb.adapter.mapper.TradeMapper;
 import com.kdb.adapter.messages.*;
 import net.openhft.chronicle.wire.DocumentContext;
 import org.mapstruct.factory.Mappers;
@@ -8,6 +9,7 @@ import org.mapstruct.factory.Mappers;
 public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnvelope, KdbMessage> {
 
   private final QuoteMapper quoteMapper = Mappers.getMapper(QuoteMapper.class);
+  private final TradeMapper tradeMapper = Mappers.getMapper(TradeMapper.class);
 
   @Override
   public ChronicleMessage readChronicleMessage(
@@ -15,8 +17,8 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
     switch (adapterType) {
       case QUOTE:
         return (ChronicleQuoteMsg) dc.wire().read(adapterType.toString()).object();
-      //case TRADE:
-      //  return (ChronicleTradeMsg) dc.wire().read(adapterType.toString()).object();
+      case TRADE:
+        return (ChronicleTradeMsg) dc.wire().read(adapterType.toString()).object();
       default:
         return null;
     }
@@ -28,8 +30,8 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
     switch (adapterType) {
       case QUOTE:
         return new KdbQuoteEnvelope(envelopeMaxSize);
-      //case TRADE:
-      //  return new KdbTradeEnvelope(envelopeMaxSize);
+      case TRADE:
+        return new KdbTradeEnvelope(envelopeMaxSize);
       default:
         return null;
     }
@@ -42,8 +44,8 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
     switch (adapterType) {
       case QUOTE:
         return quoteMapper.sourceToDestination((ChronicleQuoteMsg) chronicleMsg);
-      //case TRADE:
-      //  return (ChronicleTradeMsg) dc.wire().read(adapterType.toString()).object();
+      case TRADE:
+        return tradeMapper.sourceToDestination((ChronicleTradeMsg) chronicleMsg);
       default:
         return null;
     }

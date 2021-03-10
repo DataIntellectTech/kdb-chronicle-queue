@@ -1,6 +1,7 @@
 package com.chronicle.demo.producer.controllers;
 
 import com.kdb.adapter.data.QuoteHelper;
+import com.kdb.adapter.data.TradeHelper;
 import net.openhft.chronicle.wire.DocumentContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,11 @@ public class ProducerController {
   @Value("${chronicle.quote.queue}")
   String quoteQueuePath;
 
+  @Value("${chronicle.trade.queue}")
+  String tradeQueuePath;
+
   private AtomicBoolean startQuoteGenerator = new AtomicBoolean(false);
+  private AtomicBoolean startTradeGenerator = new AtomicBoolean(false);
 
   @GetMapping(value = "/quoteLoader")
   public String quoteLoader(
@@ -47,16 +52,65 @@ public class ProducerController {
     return ("*** Successfully executed query");
   }
 
+  @GetMapping(value = "/tradeLoader")
+  public String tradeLoader(
+          @RequestParam(value = "Command: start/stop", required = true) String command,
+          @RequestParam(value = "No. to generate", required = true) int num,
+          @RequestParam(value = "Msg Interval in millis", required = true) long msgInterval,
+          @RequestParam(value = "Batch Interval in millis", required = true) long batchInterval) {
+    try {
+      if ("START".equalsIgnoreCase(command)) {
+        startTradeGenerator.set(true);
+        tradeGenerator(num, msgInterval, batchInterval);
+      } else if ("STOP".equalsIgnoreCase(command)) {
+        startTradeGenerator.set(false);
+      }
+    } catch (Exception e) {
+      return "*** Encountered error in method tradeLoader: " + e.getMessage();
+    }
+    LOG.info("*** Successfully executed query");
+    return ("*** Successfully executed query");
+  }
+
+  public void tradeGenerator(int numToGenerate, long msgInterval, long batchInterval) {
+
+    try (SingleChronicleQueue queue = SingleChronicleQueueBuilder.binary(tradeQueuePath).build();
+        ExcerptAppender appender = queue.acquireAppender(); ) {
+
+      TradeHelper tradeHelper = new TradeHelper();
+
+      ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+      Runnable task = () -> generateTradeMessages(numToGenerate, appender, tradeHelper, msgInterval);
+
+      scheduler.scheduleWithFixedDelay(task, 0, batchInterval, TimeUnit.MILLISECONDS);
+
+      while (true) {
+        if (!startTradeGenerator.get()) {
+          scheduler.shutdown();
+          try {
+            if (!scheduler.awaitTermination(800, TimeUnit.MILLISECONDS)) {
+              scheduler.shutdownNow();
+            }
+          } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+          }
+          break;
+        }
+      }
+    }
+  }
+
   public void quoteGenerator(int numToGenerate, long msgInterval, long batchInterval) {
 
     try (SingleChronicleQueue queue = SingleChronicleQueueBuilder.binary(quoteQueuePath).build();
-        ExcerptAppender appender = queue.acquireAppender(); ) {
+         ExcerptAppender appender = queue.acquireAppender(); ) {
 
       QuoteHelper quoteHelper = new QuoteHelper();
 
       ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-      Runnable task = () -> generateMessages(numToGenerate, appender, quoteHelper, msgInterval);
+      Runnable task = () -> generateQuoteMessages(numToGenerate, appender, quoteHelper, msgInterval);
 
       scheduler.scheduleWithFixedDelay(task, 0, batchInterval, TimeUnit.MILLISECONDS);
 
@@ -73,11 +127,10 @@ public class ProducerController {
           break;
         }
       }
-      LOG.info("Out of while loop");
     }
   }
 
-  public void generateMessages(
+  public void generateQuoteMessages(
       long numToGenerate, ExcerptAppender appender, QuoteHelper quoteHelper, long msgInterval) {
 
     long numMsgsWritten = 0L;
@@ -110,5 +163,40 @@ public class ProducerController {
         numMsgsWritten,
         index,
         finish / 1e9);
+  }
+
+  public void generateTradeMessages(
+          long numToGenerate, ExcerptAppender appender, TradeHelper tradeHelper, long msgInterval) {
+
+    long numMsgsWritten = 0L;
+    long start = System.nanoTime();
+
+    while (numToGenerate == 0 || numMsgsWritten < numToGenerate) {
+      // Check for pause between each msg. Only pause if config > 0
+      if (msgInterval > 0) {
+        try {
+          Thread.sleep(msgInterval);
+        } catch (InterruptedException ie) {
+          LOG.error("Error with pause between messages: {}", ie.toString());
+          break;
+        }
+      }
+
+      try (DocumentContext dc = appender.writingDocument()) {
+        dc.wire().write("TRADE").object(tradeHelper.generateTradeMsg());
+      } catch (Exception ex) {
+        LOG.error("Error writing message: {}", ex.toString());
+      }
+      numMsgsWritten++;
+    }
+
+    long finish = System.nanoTime() - start;
+    long index = appender.lastIndexAppended();
+
+    LOG.info(
+            "TIMING: Added {} messages (up to index: {}) in {} seconds",
+            numMsgsWritten,
+            index,
+            finish / 1e9);
   }
 }

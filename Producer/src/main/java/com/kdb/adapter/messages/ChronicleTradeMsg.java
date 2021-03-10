@@ -53,8 +53,8 @@ public class ChronicleTradeMsg extends ChronicleMessage {
   public String toString() {
     // Format chronicle part of message...
     return String.format(
-            "(%s;`%s;%s;%s;`%s)",
-            this.time, this.sym, this.price, this.size, this.ex);
+        "(%s;`%s;%s;%s;`%s)",
+        this.time, this.sym, this.price, this.size, this.ex);
   }
 
 }
