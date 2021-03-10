@@ -1,13 +1,16 @@
-// usage: q schemachecker.q [-schema schemafile.csv]
+// usage: q schemachecker.q [-schema schemafile.csv] [-bit64 0|1] [-debug 0|1] [-nocheck 0|1] [-discard 0|1]
+// -schema  : schema file to load
+// -bit64   : assume 64 bit version, used for some sizings
+// -debug   : print on each insert
+// -nocheck : don't check incoming data, just insert it
+// -discard : discard incoming data, just count it
 
 \d .schema
 
-
-params:.Q.def[`schema`bit64`debug!(`;1b;0b)] .Q.opt .z.x	
+params:.Q.def[`schema`bit64`debug`nocheck`discard!(`;1b;0b;0b;0b)] .Q.opt .z.x	
 bit64:params[`bit64]	/ bit version - default 64bit
-debug:params[`debug]	/ debug mode - default 1b
+debug:params[`debug]	/ debug mode - default 0b
 
-\e 0					/ turn on error trapping
 if[0i~system"p";system"p 9990"]		/ set the port if not set
 
 // printe messages if running in debug mode
@@ -69,7 +72,7 @@ checkinsert:{[tab; data]
  
  // peg on a time column if required
  if[count[data]=-1+count tocheck; data:(enlist (count first data)#.z.p),data];
-  if[not count[data]=count tocheck; '"incorrect column length received.  Received data is ",-3!data];
+ if[not count[data]=count tocheck; '"incorrect column length received.  Received data is ",-3!data];
 
  // build the table to insert
  toinsert:flip tocheck[`col]!data;
@@ -117,8 +120,28 @@ sizestats:{
  // add in a total
  stats,([val:enlist`TOTALSIZE]totalsizeMB:value sum stats)}
 
+// upd function used in nocheck mode
+// data is not validated, just inserted
+// assume that we need to add the time as the first column on every insert
+// (modify this function if not)
+nocheckupd:{[t;x]
+ t insert (enlist (count first x)#.z.p),x;
+ }
+
+// upd function used in discard mode
+// data is just counted and then discarded (so the only kdb+ bit is the IPC de-serialisation)
+discardcount:0 
+discardupd:{[t;x] discardcount+::count first x};
+
 // set .u.upd to be equal to checkinsert, to simulate the tickerplant
 .u.upd:checkinsert
+
+if[params[`nocheck]; .u.upd:nocheckupd];
+if[params[`discard]; .u.upd:discardupd];
+// reset message handlers in nocheck and discard case
+if[max params[`nocheck`discard]; 
+  system"x .z.pg";
+  system"x .z.ps"];
 
 if[not null file:params[`schema]; readschema hsym file]
 
