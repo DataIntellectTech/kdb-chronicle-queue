@@ -5,11 +5,18 @@ import com.kdb.adapter.utils.AdapterProperties;
 import com.kdb.adapter.utils.PropertyFileLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AdapterApplication {
 
-  private static Logger LOG = LoggerFactory.getLogger(AdapterApplication.class);
+  private static Logger log = LoggerFactory.getLogger(AdapterApplication.class);
+  private static AtomicBoolean noStopFile = new AtomicBoolean(true);
 
   public static void main(String[] args) {
 
@@ -30,10 +37,28 @@ public class AdapterApplication {
       Thread thread = new Thread(adapter);
       thread.start();
 
-      // TODO introduce means to call adapter.stop() from here
+      while (noStopFile.get()){
+        checkForStopSignal(adapterProperties, adapter);
+        TimeUnit.MILLISECONDS.sleep(adapterProperties.getStopFileCheckInterval());
+      }
 
     } catch (Exception ex) {
-      LOG.error("Problem running Adapter: Exception: {}", ex.toString());
+      log.error("Problem running Adapter: Exception: {}", ex.toString());
     }
   }
+
+  public static void checkForStopSignal(AdapterProperties adapterProperties, ChronicleToKdbAdapter adapter){
+    try{
+      Path path = Paths.get(adapterProperties.getStopFile());
+      if(Files.exists(path)){
+        log.info("Stop file present. Stop running adapter");
+        adapter.stop();
+        noStopFile.set(false);
+      }
+    }
+    catch(Exception ex){
+      log.debug("Stop file not found. Keep running");
+    }
+  }
+
 }

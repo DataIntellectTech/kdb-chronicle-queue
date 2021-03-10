@@ -9,6 +9,8 @@ import java.util.Properties;
 public class AdapterProperties {
 
   private String runMode;
+  private String stopFile;
+  private long stopFileCheckInterval;
   private int coreAffinity;
   private String chronicleSource;
   private String adapterTailerName;
@@ -26,6 +28,8 @@ public class AdapterProperties {
   public AdapterProperties(Properties props) {
 
     setRunMode(props.getProperty("adapter.runMode", "NORMAL"));
+    setStopFile(props.getProperty("adapter.stopFile", "STOP.txt"));
+    setStopFileCheckInterval(Integer.parseInt(props.getProperty("adapter.stopFile.checkInterval", "5")));
     setCoreAffinity(Integer.parseInt(props.getProperty("adapter.coreAffinity", "-1")));
     setChronicleSource(props.getProperty("chronicle.source"));
     setAdapterTailerName(props.getProperty("chronicle.tailerName"));
