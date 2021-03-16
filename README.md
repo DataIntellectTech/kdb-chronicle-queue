@@ -38,9 +38,11 @@ More info: https://code.kx.com/q/
 
 ## Project goal
 
-Create an "adapter" to allow messages arriving on a Chronicle Queue to be inserted into a table in kdb+.
+Create an "adapter" to:
+	* read message data from a Chronicle Queue
+	* write that data into a table in kdb+
 
-## Scenario
+## Example Scenario
 
 * "Quotes added as messages to a Chronicle Queue should be replicated as entries in the quote table in a kdb+ database."
 * Create an Adapter to enable this
@@ -49,7 +51,7 @@ Create an "adapter" to allow messages arriving on a Chronicle Queue to be insert
 ## Components
 
 * Producer
-	* Will create Quotes and place as new messages on a named Chronicle Queue.
+	* Helper application to create Quotes and place as new messages on a named Chronicle Queue.
 * Chronicle Queue
 	* A file based queue called "quote", addressed via filesystem location e.g. "C:\\ChronicleQueue\\Producer\\quote"
 * Adapter
@@ -93,7 +95,7 @@ Quotes will then be written to the queue as a "self-describing message". E.g.:
 
 ## Adapter process
 
-<img src="https://user-images.githubusercontent.com/74417594/105519835-cfd9a680-5cd1-11eb-9119-9808371832a7.png" width="900" style="border:5px solid black" />
+<img src="https://user-images.githubusercontent.com/74417594/111356230-128b7f80-8680-11eb-87da-43c0a483ff35.png" width="900" style="border:5px solid black" />
 
 ## Adapter application
 
@@ -103,7 +105,28 @@ The application will implement the process above using vendor specific libraries
 
 The main classes in the Adapter component are shown here:
 
-<img src="https://user-images.githubusercontent.com/74417594/110123752-38c83a00-7db9-11eb-955f-fac7edd4b161.png" width="900" style="border:5px solid black" />
+<img src="https://user-images.githubusercontent.com/74417594/111356379-36e75c00-8680-11eb-9622-cf6ac1835a60.png" width="900" style="border:5px solid black" />
+
+### 0. Config for starting the Adapter
+
+The Adapter can be configured to be "started" in a number of ways using the adapter.runMode configuration value.
+
+	adapter.runMode=NORMAL (Normal data processing mode)
+	adapter.runMode=BENCH (Benchmarking mode enabling JLBH sampling)
+	adapter.runMode=KDB_BENCH (Benchmarking mode focused on kdb+ message handling and storage)
+	
+As the Adapter runs in continuous polling mode, it needs to be "stoppable". This is achieved by using a stop file. The presence of the configured stop file will shut the Adapter instance down gracefully. This will be checked for on an configurable interval.
+
+	adapter.stopFile=C:\\ChronicleQueue\\Producer\\quote\\STOP.txt
+	adapter.stopFile.checkInterval=5
+	
+Using Chronicle's Affinity library (https://github.com/OpenHFT/Java-Thread-Affinity), it is possible to bind the Adapter instance to a given core, this can improve performance (this library works best on linux). If this is configured as -1, it will be ignored. Otherwise it should be an integer >= 0.
+
+	adapter.coreAffinity=-1
+	
+Finally, the Adapter will be configured to process messages of a particular type. Project currently has an ENUM and options for QUOTE and TRADE.
+
+	adapter.messageType=QUOTE
 
 ### 1. Connect to data source i.e. Chronicle Queue
 
@@ -124,16 +147,16 @@ The data source / queue should be identified via an external properties file. Ch
 Once connected to the data source, use a Chronicle Queue Tailer to read the queue and check for new messages of the configured "type" (adapter.messageType). 
 The tailer should be named, based on configuration in an external properties file (adapter.tailerName). 
 The tailer should read forward from the last message read when re-started.
-When there are no messages to read, the adapter should stop for a configurable period of time (adapter.waitTime.whenNoMsgs).
 
 	adapter.tailerName=quoteTailer
-	adapter.messageType=quote
-	adapter.waitTime.whenNoMsgs=10000
 
 ### 3. Read message data ( -> chronicle obj)
 
 Marshall each message that is read by the tailer into a ChronicleMessage specific POJO that extends the Chronicle SelfDescribingMarshallable class to represent the chronicle queue message.
-This will be achieved using a simple Builder component to create an instance of the "Chronicle Quote Message" POJO for each message received.
+
+It is at this stage messages can be filtered in or out. If the filter is not configured, all messages of the correct type will be processed.
+
+	adapter.messageFilter=VOD.L
 
 ### 4. Do mapping (chronicle obj -> kdb obj)
 
@@ -152,7 +175,7 @@ Reference guide: https://mapstruct.org/documentation/stable/reference/html/
 
 ### 5. Add kdb msg to current kdb envelope
 
-Rather than send messages to kdb+ one at a time, it is more efficient to batch them together into a single call in a structured Object array. To facilitate this, the application will manage an "envelope" containing the combined data of one or more messages.
+Rather than send messages to kdb+ one at a time, it is more efficient to batch them together into a single call in a structured Object array (https://code.kx.com/q/wp/tick-profiling/). To facilitate this, the application will manage an "envelope" containing the combined data of one or more messages.
 
 ### 6. Send data to destination ( -> kdb+)
 
@@ -160,9 +183,9 @@ Rather than send messages to kdb+ one at a time, it is more efficient to batch t
 
 The envelope size will be limited by another configuration parameter:
 
-	kdb.envelope.size=200
+	kdb.envelope.size=100
 
-Once the threshold is reached, the current envelope will be sent to kdb+ and then reset. When there are not enough messages on the queue to fill the envelope, the current iteration will finish and the current envelope will be sent to kdb+ and then reset.
+Once the threshold is reached, the current envelope will be sent to kdb+ and then reset. When there are no messages on the queue to process, any messages in the current envelope will be sent to kdb+ and then reset.
 
 #### kdb+ 
 
@@ -201,15 +224,20 @@ the kdb message data is formatted as Object[] similar to this:
 
 ### Start the Producer
 
-The Producer component in the repositry has been built to facilitate the generation of Quote messages on the Chronicl Queue. Once running, the Producer component can be started and stopped via endpoints to allow some control and help testing. These can be accessed via the built-in Swagger page, directly with a url or directly through a tool like Postman. E.g.: 
+The Producer component in the repositry has been built to facilitate the generation of Quote messages on the Chronicle Queue. Once running, the Producer component can be started and stopped via a Swagger generated web page.
 
-*Send 10 messages at 0 milliseconds intervals (i.e. no wait in between) http://localhost:9090/producer/quoteLoader?Command%3A%20start%2Fstop=start&No.%20to%20generate=10&Interval%20in%20millis=0
-* If running a long generation process it can be stopped by sending -- http://localhost:9090/producer/quoteLoader?Command%3A%20start%2Fstop=stop&No.%20to%20generate=0&Interval%20in%20millis=0
+	http://localhost:9091/producer/swagger-ui.html
+
+E.g. Using the /quoteLoader endpoint, it is possible to "start" sending messages in batches of 1000, with no gap between each messsage, and repeat this every 2000 ms.
 
 The Producer console showing messages being added to the queue:
 
-	2021-02-03 17:14:57.723  INFO 48340 --- [nio-9090-exec-2] c.c.d.p.controllers.ProducerController   : TIMING: Added 10 messages (up to index: 80148384825735) in 0.0110204 seconds
-	2021-02-03 17:14:57.723  INFO 48340 --- [nio-9090-exec-2] c.c.d.p.controllers.ProducerController   : *** Successfully executed query
+	18:22:19.999 [pool-1-thread-1] INFO  c.c.d.p.c.ProducerController - TIMING: Added 1000 messages (up to index: 80324478407791) in 0.4166383 seconds
+	18:22:22.099 [pool-1-thread-1] INFO  c.c.d.p.c.ProducerController - TIMING: Added 1000 messages (up to index: 80324478408791) in 0.0804952 seconds
+	18:22:24.171 [pool-1-thread-1] INFO  c.c.d.p.c.ProducerController - TIMING: Added 1000 messages (up to index: 80324478409791) in 0.0688605 seconds
+	18:22:26.277 [pool-1-thread-1] INFO  c.c.d.p.c.ProducerController - TIMING: Added 1000 messages (up to index: 80324478410791) in 0.0373406 seconds
+	18:22:28.381 [pool-1-thread-1] INFO  c.c.d.p.c.ProducerController - TIMING: Added 1000 messages (up to index: 80324478411791) in 0.0217323 seconds
+	18:22:30.406 [pool-1-thread-1] INFO  c.c.d.p.c.ProducerController - TIMING: Added 1000 messages (up to index: 80324478412791) in 0.014733 seconds
 
 ### Start kdb+ instance
 
@@ -242,12 +270,7 @@ Once started, the adapter will connect to the kdb+ database first and then the C
 	Feb 03, 2021 5:16:21 PM com.kdb.adapter.chronicle.ChronicleKdbAdapter processMessages INFO: Stopping Chronicle kdb Adapter. 10 msgs stored in this cycle (0.083505101 seconds)
 	....
 
-Each message read is added to kdb+ and will show in the kdb+ console as follows:
-
-	....
-	received message: (".u.upd";`quote;(2021.02.03D17:16:16.318827300 2021.02.03D17:16:16.318827300..
-	insert successful
-	....
+Each message read is added to kdb+. Kdb+ debug messages have been switched off.
 
 A simple check of the quote table shows that the data has been added:
 
@@ -294,8 +317,4 @@ Whilst there are some generic aspects to the adapter that are configurable e.g. 
 
 The scenario used was based on our quote messages. The messages were generated in a specific, known format, added to the queue in a specific manner, i.e. as a self-describing message. This allowed the adapter to map known fields from the source message to known fields in the destination object. Finally, the kdb+ table used was structured specifically for quote data.
 
-The quote adapter example that has been completed, should be considered as a base framework to develop further message specific adapters from Chronicle Queue into kdb+. That means for every adapter required there will 
-
-# Possible next steps
-
-Develop the reverse scenario, i.e. quote >> kdb+ >> adapter >> Chronicle queue 
+The quote adapter example that has been completed, should be considered as a base framework to develop further message specific adapters from Chronicle Queue into kdb+. 
