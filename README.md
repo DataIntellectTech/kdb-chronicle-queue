@@ -39,8 +39,8 @@ More info: https://code.kx.com/q/
 ## Project goal
 
 Create an "adapter" to:
-	* read message data from a Chronicle Queue
-	* write that data into a table in kdb+
+* read message data from a Chronicle Queue
+* write that data into a table in kdb+
 
 ## Example Scenario
 
