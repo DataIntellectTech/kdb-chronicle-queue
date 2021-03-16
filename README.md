@@ -226,7 +226,7 @@ the kdb message data is formatted as Object[] similar to this:
 
 The Producer component in the repositry has been built to facilitate the generation of Quote messages on the Chronicle Queue. Once running, the Producer component can be started and stopped via a Swagger generated web page.
 
-	http://localhost:9091/producer/swagger-ui.html
+	http://localhost:9090/producer/swagger-ui.html
 
 E.g. Using the /quoteLoader endpoint, it is possible to "start" sending messages in batches of 1000, with no gap between each messsage, and repeat this every 2000 ms.
 
