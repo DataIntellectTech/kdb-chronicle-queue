@@ -45,11 +45,15 @@ public class ChronicleToKdbAdapter implements Runnable {
   public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props) {
     this.setAdapterMessageType(adapterMessageType);
     this.setAdapterProperties(props);
+    if (adapterProperties.getCoreAffinity() > -1)
+      Affinity.setAffinity(adapterProperties.getCoreAffinity());
   }
 
   public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props, JLBH jlbh) {
     this.setAdapterMessageType(adapterMessageType);
     this.setAdapterProperties(props);
+    if (adapterProperties.getCoreAffinity() > -1)
+      Affinity.setAffinity(adapterProperties.getCoreAffinity());
     this.setJLBH(jlbh);
   }
 
@@ -123,9 +127,6 @@ public class ChronicleToKdbAdapter implements Runnable {
 
       log.info("Starting Chronicle kdb Adapter");
 
-      if (adapterProperties.getCoreAffinity() > -1)
-        Affinity.setAffinity(adapterProperties.getCoreAffinity());
-
       // Check last index read / starting index
       tailerIndex = tailer.index();
       log.info("Tailer starting at index: {}", tailerIndex);
@@ -160,23 +161,15 @@ public class ChronicleToKdbAdapter implements Runnable {
 
           tailerIndex = tailer.index();
 
-          // TODO Need to make this work on ChronicleMessage rather than casting
-
-          if (this.messageType.equals(MessageTypes.AdapterMessageTypes.QUOTE)) {
-            ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
-            if ((adapterProperties.getAdapterMessageFilter().length() > 0)
-                && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
-              continue;
-            }
-          } else if (this.messageType.equals(MessageTypes.AdapterMessageTypes.TRADE)) {
-            ChronicleTradeMsg msg = (ChronicleTradeMsg) chronicleMessage;
-            if ((adapterProperties.getAdapterMessageFilter().length() > 0)
-                && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
-              continue;
-            }
-          } else {
+          int ret =
+              adapterFactory.filterChronicleMessage(
+                  chronicleMessage, this.messageType, adapterProperties.getAdapterMessageFilter());
+          // -1 error, 0 ignore, 1 keep
+          if (ret == -1) {
             log.error("Processing unavailable message type. Exiting.");
             break;
+          } else if (ret == 0) {
+            continue;
           }
 
           howManyRead++;

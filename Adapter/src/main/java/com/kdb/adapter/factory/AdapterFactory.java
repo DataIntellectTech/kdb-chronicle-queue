@@ -25,6 +25,41 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
   }
 
   @Override
+  public int filterChronicleMessage(
+      ChronicleMessage chronicleMessage,
+      MessageTypes.AdapterMessageTypes adapterType,
+      String filter) {
+
+    // If doesn't match filter return 0
+    // If no active filter return 1
+    // If matches filter return 1
+    // If invalid return -1
+
+    int ret = 0;
+
+    if (adapterType.equals(MessageTypes.AdapterMessageTypes.QUOTE)) {
+
+      ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
+      if (filter.length() == 0) {
+        ret = 1;
+      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) == -1)) {
+        ret = 1;
+      } else ret = 0;
+    } else if (adapterType.equals(MessageTypes.AdapterMessageTypes.TRADE)) {
+
+      ChronicleTradeMsg msg = (ChronicleTradeMsg) chronicleMessage;
+      if (filter.length() == 0) {
+        ret = 1;
+      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) == -1)) {
+        ret = 1;
+      } else ret = 0;
+    } else {
+      ret = -1;
+    }
+    return ret;
+  }
+
+  @Override
   public KdbEnvelope getKdbEnvelope(
       MessageTypes.AdapterMessageTypes adapterType, int envelopeMaxSize) {
     switch (adapterType) {

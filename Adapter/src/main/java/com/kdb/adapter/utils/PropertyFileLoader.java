@@ -3,6 +3,7 @@ package com.kdb.adapter.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,14 +11,13 @@ import java.util.Properties;
 
 public class PropertyFileLoader {
 
-  private static Logger LOG = LoggerFactory.getLogger(PropertyFileLoader.class);
+  private static Logger log = LoggerFactory.getLogger(PropertyFileLoader.class);
 
   public Properties getPropValues(String propFile) throws IOException {
 
     Properties prop = new Properties();
 
-    try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(propFile)){
-
+    try (InputStream inputStream = new FileInputStream(propFile)) {
       if (inputStream != null) {
         prop.load(inputStream);
       } else {
@@ -26,7 +26,7 @@ public class PropertyFileLoader {
       }
 
     } catch (Exception e) {
-      LOG.error("Exception: {}", e.toString());
+      log.error("Exception: {}", e.toString());
     }
     return prop;
   }

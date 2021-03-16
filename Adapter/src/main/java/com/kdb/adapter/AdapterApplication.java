@@ -24,7 +24,7 @@ public class AdapterApplication {
 
       final PropertyFileLoader properties = new PropertyFileLoader();
       final Properties props =
-          properties.getPropValues(args.length > 0 ? args[1] : "application.properties");
+          properties.getPropValues(args.length > 0 ? args[0] : "application.properties");
       final AdapterProperties adapterProperties = new AdapterProperties(props);
 
       final ChronicleToKdbAdapter adapter =
