@@ -24,7 +24,8 @@ public class AdapterApplication {
 
       final PropertyFileLoader properties = new PropertyFileLoader();
       final Properties props =
-          properties.getPropValues(args.length > 0 ? args[0] : "application.properties");
+          properties.getPropValues(
+              args.length > 0 ? args[0] : "src\\main\\resources\\application.properties");
       final AdapterProperties adapterProperties = new AdapterProperties(props);
 
       final ChronicleToKdbAdapter adapter =
@@ -37,7 +38,7 @@ public class AdapterApplication {
       Thread thread = new Thread(adapter);
       thread.start();
 
-      while (noStopFile.get()){
+      while (noStopFile.get()) {
         checkForStopSignal(adapterProperties, adapter);
         TimeUnit.MILLISECONDS.sleep(adapterProperties.getStopFileCheckInterval());
       }
@@ -47,18 +48,17 @@ public class AdapterApplication {
     }
   }
 
-  public static void checkForStopSignal(AdapterProperties adapterProperties, ChronicleToKdbAdapter adapter){
-    try{
+  public static void checkForStopSignal(
+      AdapterProperties adapterProperties, ChronicleToKdbAdapter adapter) {
+    try {
       Path path = Paths.get(adapterProperties.getStopFile());
-      if(Files.exists(path)){
+      if (Files.exists(path)) {
         log.info("Stop file present. Stop running adapter");
         adapter.stop();
         noStopFile.set(false);
       }
-    }
-    catch(Exception ex){
+    } catch (Exception ex) {
       log.debug("Stop file not found. Keep running");
     }
   }
-
 }
