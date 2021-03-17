@@ -49,7 +49,8 @@ public class AdapterBenchmark implements JLBHTask {
       // adapter.runMode=BENCH -> benchmarking mode, generates its own messages and writes to kdb+
 
       final PropertyFileLoader properties = new PropertyFileLoader();
-      final Properties props = properties.getPropValues("application.properties");
+      final Properties props =
+          properties.getPropValues("src\\main\\resources\\application.properties");
       final AdapterProperties adapterProperties = new AdapterProperties(props);
       final String queueName = adapterProperties.getChronicleSource();
       final ChronicleToKdbAdapter adapter =
