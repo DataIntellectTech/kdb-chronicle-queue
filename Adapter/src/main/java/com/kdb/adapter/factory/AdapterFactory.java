@@ -1,15 +1,20 @@
 package com.kdb.adapter.factory;
 
+import com.kdb.adapter.AdapterApplication;
 import com.kdb.adapter.mapper.QuoteMapper;
 import com.kdb.adapter.mapper.TradeMapper;
 import com.kdb.adapter.messages.*;
+import net.openhft.chronicle.bytes.Bytes;
 import net.openhft.chronicle.wire.DocumentContext;
 import org.mapstruct.factory.Mappers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnvelope, KdbMessage> {
 
   private final QuoteMapper quoteMapper = Mappers.getMapper(QuoteMapper.class);
   private final TradeMapper tradeMapper = Mappers.getMapper(TradeMapper.class);
+  private static Logger log = LoggerFactory.getLogger(AdapterFactory.class);
 
   @Override
   public ChronicleMessage readChronicleMessage(
@@ -42,7 +47,7 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
       ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
       if (filter.length() == 0) {
         ret = 1;
-      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) == -1)) {
+      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) != -1)) {
         ret = 1;
       } else ret = 0;
     } else if (adapterType.equals(MessageTypes.AdapterMessageTypes.TRADE)) {
@@ -50,7 +55,7 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
       ChronicleTradeMsg msg = (ChronicleTradeMsg) chronicleMessage;
       if (filter.length() == 0) {
         ret = 1;
-      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) == -1)) {
+      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) != -1)) {
         ret = 1;
       } else ret = 0;
     } else {
