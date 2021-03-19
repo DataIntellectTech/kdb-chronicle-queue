@@ -42,7 +42,7 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
       ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
       if (filter.length() == 0) {
         ret = 1;
-      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) == -1)) {
+      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) != -1)) {
         ret = 1;
       } else ret = 0;
     } else if (adapterType.equals(MessageTypes.AdapterMessageTypes.TRADE)) {
@@ -50,7 +50,7 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
       ChronicleTradeMsg msg = (ChronicleTradeMsg) chronicleMessage;
       if (filter.length() == 0) {
         ret = 1;
-      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) == -1)) {
+      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) != -1)) {
         ret = 1;
       } else ret = 0;
     } else {

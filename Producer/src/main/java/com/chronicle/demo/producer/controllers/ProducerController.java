@@ -31,17 +31,21 @@ public class ProducerController {
 
   private AtomicBoolean startQuoteGenerator = new AtomicBoolean(false);
   private AtomicBoolean startTradeGenerator = new AtomicBoolean(false);
+  private int numberOfQuoteLoops = 0;
+  private int numberOfTradeLoops = 0;
 
   @GetMapping(value = "/quoteLoader")
   public String quoteLoader(
-      @RequestParam(value = "Command: start/stop", required = true) String command,
-      @RequestParam(value = "No. to generate", required = true) int num,
-      @RequestParam(value = "Msg Interval in millis", required = true) long msgInterval,
-      @RequestParam(value = "Batch Interval in millis", required = true) long batchInterval) {
+          @RequestParam(value = "Command: start/stop", required = true) String command,
+          @RequestParam(value = "Number of loops (0 = loop continuously)", required = true)
+                  int numLoops,
+          @RequestParam(value = "No. to generate", required = true) int num,
+          @RequestParam(value = "Msg Interval in millis", required = true) long msgInterval,
+          @RequestParam(value = "Batch Interval in millis", required = true) long batchInterval) {
     try {
       if ("START".equalsIgnoreCase(command)) {
         startQuoteGenerator.set(true);
-        quoteGenerator(num, msgInterval, batchInterval);
+        quoteGenerator(numLoops, num, msgInterval, batchInterval);
       } else if ("STOP".equalsIgnoreCase(command)) {
         startQuoteGenerator.set(false);
       }
@@ -55,13 +59,15 @@ public class ProducerController {
   @GetMapping(value = "/tradeLoader")
   public String tradeLoader(
           @RequestParam(value = "Command: start/stop", required = true) String command,
+          @RequestParam(value = "Number of loops (0 = loop continuously)", required = true)
+                  int numLoops,
           @RequestParam(value = "No. to generate", required = true) int num,
           @RequestParam(value = "Msg Interval in millis", required = true) long msgInterval,
           @RequestParam(value = "Batch Interval in millis", required = true) long batchInterval) {
     try {
       if ("START".equalsIgnoreCase(command)) {
         startTradeGenerator.set(true);
-        tradeGenerator(num, msgInterval, batchInterval);
+        tradeGenerator(numLoops, num, msgInterval, batchInterval);
       } else if ("STOP".equalsIgnoreCase(command)) {
         startTradeGenerator.set(false);
       }
@@ -72,21 +78,25 @@ public class ProducerController {
     return ("*** Successfully executed query");
   }
 
-  public void tradeGenerator(int numToGenerate, long msgInterval, long batchInterval) {
+  public void tradeGenerator(
+          int numLoops, int numToGenerate, long msgInterval, long batchInterval) {
 
     try (SingleChronicleQueue queue = SingleChronicleQueueBuilder.binary(tradeQueuePath).build();
-        ExcerptAppender appender = queue.acquireAppender(); ) {
+         ExcerptAppender appender = queue.acquireAppender(); ) {
 
       TradeHelper tradeHelper = new TradeHelper();
 
       ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-      Runnable task = () -> generateTradeMessages(numToGenerate, appender, tradeHelper, msgInterval);
+      numberOfTradeLoops = 0;
+
+      Runnable task =
+              () -> generateTradeMessages(numToGenerate, appender, tradeHelper, msgInterval);
 
       scheduler.scheduleWithFixedDelay(task, 0, batchInterval, TimeUnit.MILLISECONDS);
 
       while (true) {
-        if (!startTradeGenerator.get()) {
+        if (!startTradeGenerator.get() || (numLoops > 0 && (numberOfTradeLoops == numLoops))) {
           scheduler.shutdown();
           try {
             if (!scheduler.awaitTermination(800, TimeUnit.MILLISECONDS)) {
@@ -101,7 +111,8 @@ public class ProducerController {
     }
   }
 
-  public void quoteGenerator(int numToGenerate, long msgInterval, long batchInterval) {
+  public void quoteGenerator(
+          int numLoops, int numToGenerate, long msgInterval, long batchInterval) {
 
     try (SingleChronicleQueue queue = SingleChronicleQueueBuilder.binary(quoteQueuePath).build();
          ExcerptAppender appender = queue.acquireAppender(); ) {
@@ -110,12 +121,15 @@ public class ProducerController {
 
       ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-      Runnable task = () -> generateQuoteMessages(numToGenerate, appender, quoteHelper, msgInterval);
+      numberOfQuoteLoops = 0;
+
+      Runnable task =
+              () -> generateQuoteMessages(numToGenerate, appender, quoteHelper, msgInterval);
 
       scheduler.scheduleWithFixedDelay(task, 0, batchInterval, TimeUnit.MILLISECONDS);
 
       while (true) {
-        if (!startQuoteGenerator.get()) {
+        if (!startQuoteGenerator.get() || (numLoops > 0 && (numberOfQuoteLoops == numLoops))) {
           scheduler.shutdown();
           try {
             if (!scheduler.awaitTermination(800, TimeUnit.MILLISECONDS)) {
@@ -131,7 +145,7 @@ public class ProducerController {
   }
 
   public void generateQuoteMessages(
-      long numToGenerate, ExcerptAppender appender, QuoteHelper quoteHelper, long msgInterval) {
+          long numToGenerate, ExcerptAppender appender, QuoteHelper quoteHelper, long msgInterval) {
 
     long numMsgsWritten = 0L;
     long start = System.nanoTime();
@@ -155,14 +169,17 @@ public class ProducerController {
       numMsgsWritten++;
     }
 
+    numberOfQuoteLoops++;
+
     long finish = System.nanoTime() - start;
     long index = appender.lastIndexAppended();
 
     LOG.info(
-        "TIMING: Added {} messages (up to index: {}) in {} seconds",
-        numMsgsWritten,
-        index,
-        finish / 1e9);
+            "LOOP: {}; TIMING: Added {} messages (up to index: {}) in {} seconds",
+            numberOfQuoteLoops,
+            numMsgsWritten,
+            index,
+            finish / 1e9);
   }
 
   public void generateTradeMessages(
@@ -190,11 +207,14 @@ public class ProducerController {
       numMsgsWritten++;
     }
 
+    numberOfTradeLoops++;
+
     long finish = System.nanoTime() - start;
     long index = appender.lastIndexAppended();
 
     LOG.info(
-            "TIMING: Added {} messages (up to index: {}) in {} seconds",
+            "LOOP: {}; TIMING: Added {} messages (up to index: {}) in {} seconds",
+            numberOfTradeLoops,
             numMsgsWritten,
             index,
             finish / 1e9);
