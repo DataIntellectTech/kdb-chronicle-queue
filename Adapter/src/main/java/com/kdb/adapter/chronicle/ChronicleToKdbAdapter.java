@@ -161,9 +161,14 @@ public class ChronicleToKdbAdapter implements Runnable {
 
           tailerIndex = tailer.index();
 
+          // Check message against filter (if there is a filter specified in props)
           int ret =
               adapterFactory.filterChronicleMessage(
-                  chronicleMessage, this.messageType, adapterProperties.getAdapterMessageFilter());
+                  chronicleMessage,
+                  this.messageType,
+                  adapterProperties.getAdapterMessageFilterField(),
+                  adapterProperties.getAdapterMessageFilterIn(),
+                  adapterProperties.getAdapterMessageFilterOut());
           // -1 error, 0 ignore, 1 keep
           if (ret == -1) {
             log.error("Processing unavailable message type. Exiting.");
@@ -309,10 +314,19 @@ public class ChronicleToKdbAdapter implements Runnable {
           // Increment current "read up to index"
           tailerIndex = tailer.index();
 
-          // Check if message to be processed. Check against filter (if there is a filter specified
-          // in props)
-          if ((adapterProperties.getAdapterMessageFilter().length() > 0)
-              && (adapterProperties.getAdapterMessageFilter().indexOf(msg.getSym()) == -1)) {
+          // Check message against filter (if there is a filter specified in props)
+          int ret =
+                  adapterFactory.filterChronicleMessage(
+                          chronicleMessage,
+                          this.messageType,
+                          adapterProperties.getAdapterMessageFilterField(),
+                          adapterProperties.getAdapterMessageFilterIn(),
+                          adapterProperties.getAdapterMessageFilterOut());
+          // -1 error, 0 ignore, 1 keep
+          if (ret == -1) {
+            log.error("Processing unavailable message type. Exiting.");
+            break;
+          } else if (ret == 0) {
             continue;
           }
 

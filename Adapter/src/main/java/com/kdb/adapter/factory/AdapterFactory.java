@@ -6,6 +6,8 @@ import com.kdb.adapter.messages.*;
 import net.openhft.chronicle.wire.DocumentContext;
 import org.mapstruct.factory.Mappers;
 
+import java.lang.reflect.Field;
+
 public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnvelope, KdbMessage> {
 
   private final QuoteMapper quoteMapper = Mappers.getMapper(QuoteMapper.class);
@@ -28,35 +30,113 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
   public int filterChronicleMessage(
       ChronicleMessage chronicleMessage,
       MessageTypes.AdapterMessageTypes adapterType,
-      String filter) {
+      String filterField,
+      String filterIn,
+      String filterOut) {
 
-    // If doesn't match filter return 0
-    // If no active filter return 1
-    // If matches filter return 1
-    // If invalid return -1
+    try {
 
-    int ret = 0;
+      // Keep = 1
+      // Reject = 0
+      // Error = -1
 
-    if (adapterType.equals(MessageTypes.AdapterMessageTypes.QUOTE)) {
+      // If doesn't match filter return 0
+      // If no active filter return 1
+      // If matches filter return 1
+      // If invalid return -1
 
-      ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
-      if (filter.length() == 0) {
+      int ret = 0;
+      boolean decisionMade = false;
+
+      if (filterIn.length() > 0) {
+
+        if (adapterType.equals(MessageTypes.AdapterMessageTypes.QUOTE)) {
+          decisionMade = true;
+          ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
+
+          ret =
+              filterMessageBasedOnStringField(
+                  MessageTypes.AdapterMessageTypes.QUOTE.implClass,
+                  true,
+                  filterField,
+                  msg,
+                  filterIn);
+
+        } else if (adapterType.equals(MessageTypes.AdapterMessageTypes.TRADE)) {
+          decisionMade = true;
+          ChronicleTradeMsg msg = (ChronicleTradeMsg) chronicleMessage;
+
+          ret =
+              filterMessageBasedOnStringField(
+                  MessageTypes.AdapterMessageTypes.TRADE.implClass,
+                  true,
+                  filterField,
+                  msg,
+                  filterIn);
+
+        } else {
+          decisionMade = true;
+          ret = -1;
+        }
+      } else {
         ret = 1;
-      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) != -1)) {
-        ret = 1;
-      } else ret = 0;
-    } else if (adapterType.equals(MessageTypes.AdapterMessageTypes.TRADE)) {
+      }
 
-      ChronicleTradeMsg msg = (ChronicleTradeMsg) chronicleMessage;
-      if (filter.length() == 0) {
-        ret = 1;
-      } else if ((filter.length() > 0) && (filter.indexOf(msg.getSym()) != -1)) {
-        ret = 1;
-      } else ret = 0;
-    } else {
-      ret = -1;
+      if (filterOut.length() > 0) {
+
+        if (adapterType.equals(MessageTypes.AdapterMessageTypes.QUOTE)) {
+          ChronicleQuoteMsg msg = (ChronicleQuoteMsg) chronicleMessage;
+          ret =
+              filterMessageBasedOnStringField(
+                  MessageTypes.AdapterMessageTypes.QUOTE.implClass,
+                  false,
+                  filterField,
+                  msg,
+                  filterOut);
+
+        } else if (adapterType.equals(MessageTypes.AdapterMessageTypes.TRADE)) {
+          ChronicleTradeMsg msg = (ChronicleTradeMsg) chronicleMessage;
+          ret =
+              filterMessageBasedOnStringField(
+                  MessageTypes.AdapterMessageTypes.TRADE.implClass,
+                  false,
+                  filterField,
+                  msg,
+                  filterOut);
+
+        } else {
+          ret = -1;
+        }
+      } else {
+        if (!decisionMade) ret = 1;
+      }
+      return ret;
+    } catch (Exception ex) {
+      return -1;
     }
-    return ret;
+  }
+
+  // Keep = 1
+  // Reject = 0
+  // Error = -1
+  // filterIn = true -> if string check true then keep, else reject
+  // filterIn = false -> if string check true then reject, else keep
+  private int filterMessageBasedOnStringField(
+      String className, boolean filterIn, String filterField, ChronicleMessage msg, String filter) {
+    try {
+      Class<?> msgClass = Class.forName(className);
+      Field field = msgClass.getDeclaredField(filterField);
+      field.setAccessible(true);
+      String filterFieldValue = (String) field.get(msg);
+
+      int ret = filterIn ? 0 : 1;
+      if (filter.contains(filterFieldValue)) {
+        ret = filterIn ? 1 : 0;
+      }
+      return ret;
+    } catch (Exception ex) {
+      return -1;
+    }
   }
 
   @Override
