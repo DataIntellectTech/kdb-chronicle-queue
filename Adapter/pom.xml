@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.chronicle.demo.adapter</groupId>
+    <groupId>uk.co.aquaq.kdb.adapter</groupId>
     <artifactId>adapter</artifactId>
     <version>0.1</version>
     <name>Adapter</name>
@@ -68,8 +68,8 @@
 							<archive>
 								<manifest>
 									<mainClass>
-										com.kdb.adapter.AdapterApplication
-									</mainClass>
+                                        uk.co.aquaq.kdb.adapter.AdapterApplication
+                                    </mainClass>
 								</manifest>
 							</archive>
 							<descriptorRefs>

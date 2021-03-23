@@ -8,7 +8,7 @@
 		<version>2.4.0</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.chronicle.demo</groupId>
+	<groupId>uk.co.aquaq.chronicle.demo.producer</groupId>
 	<artifactId>producer</artifactId>
 	<version>0.1</version>
 	<name>producer</name>
