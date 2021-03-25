@@ -1,5 +1,6 @@
 package uk.co.aquaq.kdb.adapter.factory;
 
+import uk.co.aquaq.kdb.adapter.customexceptions.AdapterConfigurationException;
 import uk.co.aquaq.kdb.adapter.mapper.QuoteMapper;
 import uk.co.aquaq.kdb.adapter.mapper.TradeMapper;
 import uk.co.aquaq.kdb.adapter.messages.*;
@@ -75,8 +76,8 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
                   filterIn);
 
         } else {
-          decisionMade = true;
-          ret = -1;
+          throw new AdapterConfigurationException(
+              "Adapter type (" + adapterType + ") not configured yet. Check config.");
         }
       } else {
         ret = 1;
@@ -105,7 +106,8 @@ public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnve
                   filterOut);
 
         } else {
-          ret = -1;
+          throw new AdapterConfigurationException(
+              "Adapter type (" + adapterType + ") not configured yet. Check config.");
         }
       } else {
         if (!decisionMade) ret = 1;

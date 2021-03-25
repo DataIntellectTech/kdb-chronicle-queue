@@ -1,5 +1,6 @@
 package uk.co.aquaq.kdb.adapter.chronicle;
 
+import uk.co.aquaq.kdb.adapter.customexceptions.AdapterConfigurationException;
 import uk.co.aquaq.kdb.adapter.messages.*;
 import uk.co.aquaq.kdb.adapter.data.QuoteHelper;
 import uk.co.aquaq.kdb.adapter.factory.AdapterFactory;
@@ -43,10 +44,10 @@ public class ChronicleToKdbAdapter implements Runnable {
   }
 
   public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props) {
-    this.setAdapterMessageType(adapterMessageType);
-    this.setAdapterProperties(props);
-    if (adapterProperties.getCoreAffinity() > -1)
-      Affinity.setAffinity(adapterProperties.getCoreAffinity());
+      this.setAdapterMessageType(adapterMessageType);
+      this.setAdapterProperties(props);
+      if (adapterProperties.getCoreAffinity() > -1)
+        Affinity.setAffinity(adapterProperties.getCoreAffinity());
   }
 
   public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props, JLBH jlbh) {
@@ -87,18 +88,16 @@ public class ChronicleToKdbAdapter implements Runnable {
     return this.messageType;
   }
 
-  public boolean setAdapterMessageType(String messageType) {
+  public void setAdapterMessageType(String messageType) {
     // Set adapter message factory type based on config property
-    boolean ret = true;
     if (messageType.equalsIgnoreCase("QUOTE")) {
       this.setMessageType(MessageTypes.AdapterMessageTypes.QUOTE);
     } else if (messageType.equalsIgnoreCase("TRADE")) {
       this.setMessageType(MessageTypes.AdapterMessageTypes.TRADE);
     } else {
       log.error("Adapter type ({}) not configured yet. Check config.", messageType);
-      ret = false;
+      throw new AdapterConfigurationException("Adapter type (" + messageType + ") not configured yet. Check config.");
     }
-    return ret;
   }
 
   public void tidyUp() {
