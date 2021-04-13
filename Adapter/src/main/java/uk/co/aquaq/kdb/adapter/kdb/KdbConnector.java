@@ -1,5 +1,7 @@
 package uk.co.aquaq.kdb.adapter.kdb;
 
+import uk.co.aquaq.kdb.adapter.customexceptions.AdapterConfigurationException;
+import uk.co.aquaq.kdb.adapter.customexceptions.KdbException;
 import uk.co.aquaq.kdb.adapter.messages.KdbEnvelope;
 import uk.co.aquaq.kdb.adapter.utils.AdapterProperties;
 import com.kx.c;
@@ -8,17 +10,26 @@ import java.io.IOException;
 
 public class KdbConnector {
 
-  private static org.slf4j.Logger LOG = LoggerFactory.getLogger(KdbConnector.class.getName());
+  private static org.slf4j.Logger log = LoggerFactory.getLogger(KdbConnector.class.getName());
 
   private c kdbConnection = null;
   private boolean connectedToKdb = false;
 
-  public KdbConnector(AdapterProperties adapterProperties) {
+  public KdbConnector(AdapterProperties adapterProperties) throws KdbException {
 
     try {
 
-      LOG.debug("*** Attempting to connect to Kdb server");
+      log.debug("*** Attempting to connect to Kdb server");
+      connectToKdb(adapterProperties);
 
+    } catch (KdbException ex) {
+      kdbConnection = null;
+      throw ex;
+    }
+  }
+
+  private void connectToKdb(AdapterProperties adapterProperties) throws KdbException {
+    try {
       kdbConnection =
           new c(
               adapterProperties.getKdbHost(),
@@ -26,10 +37,9 @@ public class KdbConnector {
               adapterProperties.getKdbLogin());
 
       connectedToKdb = testConnection();
-
-    } catch (Exception e) {
-      LOG.error("*** Encountered constructing KdbConnector: {}", e.getMessage());
+    } catch (c.KException | IOException e) {
       kdbConnection = null;
+      throw new KdbException("*** Problem connecting to kdb+: " + e.getMessage());
     }
   }
 
@@ -37,37 +47,35 @@ public class KdbConnector {
     try {
       kdbConnection.close();
     } catch (Exception e) {
-      LOG.error("*** Encountered error in method closeConnection: {}", e.getMessage());
+      log.error("*** Encountered error in method closeConnection: {}", e.getMessage());
       kdbConnection = null;
     }
   }
 
   public void maintainKdbConnection(AdapterProperties adapterProperties)
-      throws c.KException, IOException {
-
-    connectedToKdb = testConnection();
-    if (!connectedToKdb) {
-      LOG.info("*** Attempting to reconnect to Kdb server");
-      kdbConnection =
-          new c(
-              adapterProperties.getKdbHost(),
-              adapterProperties.getKdbPort(),
-              adapterProperties.getKdbLogin());
+      throws KdbException {
+    try {
+      if (!testConnection()) {
+        log.info("*** Attempting to reconnect to Kdb+");
+        connectToKdb(adapterProperties);
+      }
+    } catch (c.KException | IOException e) {
+      kdbConnection = null;
+      throw new KdbException("*** Problem maintaining connection to Kdb+: " + e.getMessage());
     }
   }
 
-  private boolean testConnection()
-      throws c.KException, IOException {
+  private boolean testConnection() throws c.KException, IOException {
     Object queryResult = kdbConnection.k("1+1");
     return queryResult.toString().equals("2");
   }
 
-  public boolean saveEnvelope(AdapterProperties adapterProperties, KdbEnvelope kdbEnvelope) {
+  public void saveEnvelope(AdapterProperties adapterProperties, KdbEnvelope kdbEnvelope) throws KdbException, IOException, AdapterConfigurationException {
     try {
       if (adapterProperties.isKdbConnectionEnabled()) {
 
         if (!connectedToKdb) {
-          maintainKdbConnection(adapterProperties);
+          connectToKdb(adapterProperties);
         }
 
         // Merge kdbMessage data with configured destination table and method to create valid kdb
@@ -76,15 +84,16 @@ public class KdbConnector {
             adapterProperties.getKdbDestinationFunction(),
             adapterProperties.getKdbDestination(),
             kdbEnvelope.toObjectArray());
-        LOG.debug("*** Persisted envelope ({} messages) to kdb+", kdbEnvelope.getEnvelopeDepth());
-        return true;
+
+        log.debug("*** Persisted envelope ({} messages) to kdb+", kdbEnvelope.getEnvelopeDepth());
+
       } else {
-        LOG.info("kdb connection not enabled. Check config!");
-        return false;
+        log.info("kdb connection not enabled. Check config!");
+        throw new AdapterConfigurationException("Kdb connection not enabled.");
       }
-    } catch (Exception ex) {
-      LOG.error(" Problem saving message data {}", ex.toString());
-      return false;
+    } catch (KdbException | IOException ex) {
+      log.error(" Problem saving message data {}", ex.toString());
+      throw ex;
     }
   }
 }

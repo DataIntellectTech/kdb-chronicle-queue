@@ -1,6 +1,7 @@
 package uk.co.aquaq.kdb.adapter.chronicle;
 
 import uk.co.aquaq.kdb.adapter.customexceptions.AdapterConfigurationException;
+import uk.co.aquaq.kdb.adapter.customexceptions.KdbException;
 import uk.co.aquaq.kdb.adapter.messages.*;
 import uk.co.aquaq.kdb.adapter.data.QuoteHelper;
 import uk.co.aquaq.kdb.adapter.factory.AdapterFactory;
@@ -16,6 +17,7 @@ import net.openhft.affinity.Affinity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -44,10 +46,10 @@ public class ChronicleToKdbAdapter implements Runnable {
   }
 
   public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props) {
-      this.setAdapterMessageType(adapterMessageType);
-      this.setAdapterProperties(props);
-      if (adapterProperties.getCoreAffinity() > -1)
-        Affinity.setAffinity(adapterProperties.getCoreAffinity());
+    this.setAdapterMessageType(adapterMessageType);
+    this.setAdapterProperties(props);
+    if (adapterProperties.getCoreAffinity() > -1)
+      Affinity.setAffinity(adapterProperties.getCoreAffinity());
   }
 
   public ChronicleToKdbAdapter(String adapterMessageType, AdapterProperties props, JLBH jlbh) {
@@ -88,7 +90,7 @@ public class ChronicleToKdbAdapter implements Runnable {
     return this.messageType;
   }
 
-  public void setAdapterMessageType(String messageType) {
+  public void setAdapterMessageType(String messageType) throws AdapterConfigurationException {
     // Set adapter message factory type based on config property
     if (messageType.equalsIgnoreCase("QUOTE")) {
       this.setMessageType(MessageTypes.AdapterMessageTypes.QUOTE);
@@ -96,7 +98,8 @@ public class ChronicleToKdbAdapter implements Runnable {
       this.setMessageType(MessageTypes.AdapterMessageTypes.TRADE);
     } else {
       log.error("Adapter type ({}) not configured yet. Check config.", messageType);
-      throw new AdapterConfigurationException("Adapter type (" + messageType + ") not configured yet. Check config.");
+      throw new AdapterConfigurationException(
+          "Adapter type (" + messageType + ") not configured yet. Check config.");
     }
   }
 
@@ -117,6 +120,7 @@ public class ChronicleToKdbAdapter implements Runnable {
     long tailerIndex;
     final long processStart = System.nanoTime();
     long processFinish;
+    KdbEnvelope envelope;
 
     // 1. Connect to Chronicle Queue source
     // 2. Create "tailer" to listen for messages
@@ -134,7 +138,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       AdapterFactory adapterFactory = new AdapterFactory();
 
       // Create new kdbEnvelope instance from factory for this adapter / config
-      final KdbEnvelope envelope =
+      envelope =
           adapterFactory.getKdbEnvelope(
               this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
@@ -146,7 +150,11 @@ public class ChronicleToKdbAdapter implements Runnable {
           if (!dc.isPresent()) {
             // if nothing new in the queue, try sending anything currently in the envelope
             if (!envelope.isEmpty()) {
-              trySend(adapterProperties, tailer, envelope);
+              try {
+                trySend(adapterProperties, tailer, envelope);
+              } catch (Exception ex) {
+                rollbackEnvelope(envelope, tailer);
+              }
             }
             continue;
           }
@@ -209,21 +217,38 @@ public class ChronicleToKdbAdapter implements Runnable {
       log.error("Error in processMessages() -- {}", ex.toString());
     } finally {
       tidyUp();
+      stop();
     }
   }
 
+  private void rollbackEnvelope(KdbEnvelope envelope, ExcerptTailer tailer) {
+    // If error has occured and there are messages in the current envelope
+    // rollback tailer on queue so can re-start from correct point
+    log.info(FAILED_TO_SAVE);
+    // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
+    log.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
+    tailer.moveToIndex(envelope.getFirstIndex());
+  }
+
   private void trySend(
-      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope<?> envelope) {
+      AdapterProperties adapterProperties, ExcerptTailer tailer, KdbEnvelope<?> envelope)
+      throws AdapterConfigurationException, KdbException, IOException {
 
     long now = System.nanoTime();
     if (now - lastWriteNanos < MIN_SEND_PAUSE_NANOS) return;
 
-    int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
-    if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
-      howManyStored += envelopeDepthBeforeSave;
-    } else {
-      // Problem => Stop running
-      this.stop();
+    try {
+
+      int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
+      if (saveCurrentEnvelope(adapterProperties, envelope, tailer)) {
+        howManyStored += envelopeDepthBeforeSave;
+      } else {
+        // Problem => Stop running
+        this.stop();
+        throw new KdbException("Error saving envelope to Kdb.");
+      }
+    } catch (Exception ex) {
+
     }
   }
 
@@ -315,12 +340,12 @@ public class ChronicleToKdbAdapter implements Runnable {
 
           // Check message against filter (if there is a filter specified in props)
           int ret =
-                  adapterFactory.filterChronicleMessage(
-                          chronicleMessage,
-                          this.messageType,
-                          adapterProperties.getAdapterMessageFilterField(),
-                          adapterProperties.getAdapterMessageFilterIn(),
-                          adapterProperties.getAdapterMessageFilterOut());
+              adapterFactory.filterChronicleMessage(
+                  chronicleMessage,
+                  this.messageType,
+                  adapterProperties.getAdapterMessageFilterField(),
+                  adapterProperties.getAdapterMessageFilterIn(),
+                  adapterProperties.getAdapterMessageFilterOut());
           // -1 error, 0 ignore, 1 keep
           if (ret == -1) {
             log.error("Processing unavailable message type. Exiting.");
@@ -358,6 +383,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       log.error("Error in benchmarkProcessMessages() -- {}", ex.toString());
     } finally {
       tidyUp();
+      stop();
     }
   }
 
@@ -417,29 +443,26 @@ public class ChronicleToKdbAdapter implements Runnable {
     }
   }
 
-  private boolean saveCurrentEnvelope(
-      AdapterProperties adapterProperties, KdbEnvelope<?> envelope, ExcerptTailer tailer) {
+  private void saveCurrentEnvelope(
+      AdapterProperties adapterProperties, KdbEnvelope<?> envelope, ExcerptTailer tailer)
+      throws AdapterConfigurationException, KdbException, IOException {
 
-    boolean retVal = true;
+    try {
 
-    if (kdbConnector == null) {
-      kdbConnector = new KdbConnector(adapterProperties);
-    }
+      if (kdbConnector == null) {
+        kdbConnector = new KdbConnector(adapterProperties);
+      }
 
-    if (kdbConnector.saveEnvelope(adapterProperties, envelope)) {
+      kdbConnector.saveEnvelope(adapterProperties, envelope);
 
       // 7. Envelope contents saved. Re-set envelope...
       envelope.reset();
       howManyRead = 0;
-    } else {
-      log.info(FAILED_TO_SAVE);
-      // Roll back Chronicle Tailer to (index of 1st msg in envelope - 1)
-      log.info("Rolling Chronicle Tailer back to index: {}", envelope.getFirstIndex());
-      tailer.moveToIndex(envelope.getFirstIndex());
-      retVal = false;
+
+    } catch (AdapterConfigurationException | KdbException | IOException ex) {
+      throw ex;
     }
 
-    return retVal;
   }
 
   // Benchmarking kdb only version
