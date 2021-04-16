@@ -243,7 +243,7 @@ The Producer console showing messages being added to the queue:
 
 If running on a Windows OS, use a cmd prompt / Powershell window and run the following command:
 
-	q dummytp.q -p 5000 -u 1}
+	q dummytp.q -p 5000 -u 1
 
 should return the "q prompt similar to that below:
 
