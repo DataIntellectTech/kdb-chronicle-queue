@@ -1,7 +1,10 @@
-package uk.co.aquaq.kdb.adapter.messages;
+package uk.co.aquaq.kdb.adapter.envelopes;
 
 import lombok.Getter;
 import lombok.Setter;
+import uk.co.aquaq.kdb.adapter.messages.KdbQuoteMessage;
+import uk.co.aquaq.kdb.adapter.utils.AdapterProperties;
+
 import java.sql.Timestamp;
 import java.util.Arrays;
 
@@ -17,8 +20,6 @@ public abstract class KdbEnvelope<T> {
   long firstIndex;
   // Needed for benchmarking
   long[] ts;
-
-  public abstract void reset();
 
   public long[] addElement(long[] srcArray, long elementToAdd) {
     long[] destArray = Arrays.copyOf(srcArray, srcArray.length + 1);
@@ -44,7 +45,11 @@ public abstract class KdbEnvelope<T> {
     return destArray;
   }
 
-  public abstract void addToEnvelope(T kdbMessage, Long index);
+  public abstract void addToEnvelope(T kdbMessage, Long index, AdapterProperties props);
 
   public abstract Object[] toObjectArray();
+
+  public abstract void reset();
+
+  public abstract boolean acceptMessage(T kdbMessage, AdapterProperties props);
 }

@@ -2,7 +2,7 @@ package uk.co.aquaq.kdb.adapter.kdb;
 
 import uk.co.aquaq.kdb.adapter.customexceptions.AdapterConfigurationException;
 import uk.co.aquaq.kdb.adapter.customexceptions.KdbException;
-import uk.co.aquaq.kdb.adapter.messages.KdbEnvelope;
+import uk.co.aquaq.kdb.adapter.envelopes.KdbEnvelope;
 import uk.co.aquaq.kdb.adapter.utils.AdapterProperties;
 import com.kx.c;
 import org.slf4j.LoggerFactory;
@@ -39,7 +39,7 @@ public class KdbConnector {
       connectedToKdb = testConnection();
     } catch (c.KException | IOException e) {
       kdbConnection = null;
-      throw new KdbException("*** Problem connecting to kdb+: " + e.getMessage());
+      throw new KdbException("*** Problem connecting to kdb+ {"+e.getMessage()+"}", e);
     }
   }
 
@@ -52,25 +52,13 @@ public class KdbConnector {
     }
   }
 
-  public void maintainKdbConnection(AdapterProperties adapterProperties)
-      throws KdbException {
-    try {
-      if (!testConnection()) {
-        log.info("*** Attempting to reconnect to Kdb+");
-        connectToKdb(adapterProperties);
-      }
-    } catch (c.KException | IOException e) {
-      kdbConnection = null;
-      throw new KdbException("*** Problem maintaining connection to Kdb+: " + e.getMessage());
-    }
-  }
-
   private boolean testConnection() throws c.KException, IOException {
     Object queryResult = kdbConnection.k("1+1");
     return queryResult.toString().equals("2");
   }
 
-  public void saveEnvelope(AdapterProperties adapterProperties, KdbEnvelope kdbEnvelope) throws KdbException, IOException, AdapterConfigurationException {
+  public void saveEnvelope(AdapterProperties adapterProperties, KdbEnvelope kdbEnvelope)
+      throws KdbException, AdapterConfigurationException {
     try {
       if (adapterProperties.isKdbConnectionEnabled()) {
 
@@ -91,9 +79,10 @@ public class KdbConnector {
         log.info("kdb connection not enabled. Check config!");
         throw new AdapterConfigurationException("Kdb connection not enabled.");
       }
-    } catch (KdbException | IOException ex) {
-      log.error(" Problem saving message data {}", ex.toString());
+    } catch (KdbException ex) {
       throw ex;
+    } catch (IOException e) {
+      throw new KdbException("Problem saving message data ", e);
     }
   }
 }
