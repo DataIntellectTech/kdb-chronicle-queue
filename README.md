@@ -154,16 +154,6 @@ The tailer should read forward from the last message read when re-started.
 
 Marshall each message that is read by the tailer into a ChronicleMessage specific POJO that extends the Chronicle SelfDescribingMarshallable class to represent the chronicle queue message.
 
-It is at this stage messages can be filtered. Current functionality allows filtering on any String based field e.g. sym, aex or bex. Once the filter field is specified, config can be added to provide a "filter in" white list OR a "filter out" black list. The logic provided means that this is one or the other and the two options cannot be combined. If no filter config is provided, all messages of the correct type will be processed.
-
-	# Adapter can filter messages on String field. Also allows different Adapter threads to run independently
-	# NOTE: use FilterIn OR FilterOut but not both
-	adapter.messageFilterField=sym
-	# Filter message IN if Filter Field value is in this comma separated list
-	adapter.messageFilterIn=JUVE.MI,VOD.L,HEIN.AS
-	# Filter message OUT if Filter Field value in this comma separated list
-	#adapter.messageFilterOut=JUVE.MI	
-
 ### 4. Do mapping (chronicle obj -> kdb obj)
 
 Mapstruct allows simple or very complex mapping between source and destination POJO's to be coded quickly as an interface. Mapping is defined in the interface and when the application is built, code is automatically generated to implement the interface. 
@@ -182,6 +172,16 @@ Reference guide: https://mapstruct.org/documentation/stable/reference/html/
 ### 5. Add kdb msg to current kdb envelope
 
 Rather than send messages to kdb+ one at a time, it is more efficient to batch them together into a single call in a structured Object array (https://code.kx.com/q/wp/tick-profiling/). To facilitate this, the application will manage an "envelope" containing the combined data of one or more messages.
+
+It is at this stage messages can be filtered. Current functionality allows filtering on any String based field e.g. sym, aex or bex. Once the filter field is specified, config can be added to provide a "filter in" white list OR a "filter out" black list. The logic provided means that this is one or the other and the two options cannot be combined. If no filter config is provided, all messages of the correct type will be processed.
+
+	# Adapter can filter messages on String field. Also allows different Adapter threads to run independently
+	# NOTE: use FilterIn OR FilterOut but not both
+	adapter.messageFilterField=sym
+	# Filter message IN if Filter Field value is in this comma separated list
+	adapter.messageFilterIn=JUVE.MI,VOD.L,HEIN.AS
+	# Filter message OUT if Filter Field value in this comma separated list
+	#adapter.messageFilterOut=JUVE.MI
 
 ### 6. Send data to destination ( -> kdb+)
 
