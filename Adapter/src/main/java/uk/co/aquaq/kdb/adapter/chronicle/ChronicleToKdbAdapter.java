@@ -121,7 +121,7 @@ public class ChronicleToKdbAdapter implements Runnable {
     long tailerIndex;
     final long processStart = System.nanoTime();
     long processFinish;
-    KdbEnvelope envelope;
+    KdbEnvelope<KdbMessage> envelope;
 
     // 1. Connect to Chronicle Queue source
     // 2. Create "tailer" to listen for messages
@@ -212,7 +212,7 @@ public class ChronicleToKdbAdapter implements Runnable {
     }
   }
 
-  private void rollbackEnvelope(KdbEnvelope envelope, ExcerptTailer tailer) {
+  private void rollbackEnvelope(KdbEnvelope<KdbMessage> envelope, ExcerptTailer tailer) {
     // If error has occured and there are messages in the current envelope
     // rollback tailer on queue so can re-start from correct point
     log.info(FAILED_TO_SAVE);
@@ -270,7 +270,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       var adapterFactory = new AdapterFactory();
 
       // Create new kdbEnvelope instance from factory for this adapter / config
-      final KdbEnvelope envelope =
+      final KdbEnvelope<KdbMessage> envelope =
           adapterFactory.getKdbEnvelope(
               this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 
@@ -346,7 +346,7 @@ public class ChronicleToKdbAdapter implements Runnable {
       var adapterFactory = new AdapterFactory();
 
       // Create new kdbEnvelope instance from factory for this adapter / config
-      final KdbEnvelope envelope =
+      final KdbEnvelope<KdbMessage> envelope =
           adapterFactory.getKdbEnvelope(
               this.getMessageType(), adapterProperties.getKdbEnvelopeSize());
 

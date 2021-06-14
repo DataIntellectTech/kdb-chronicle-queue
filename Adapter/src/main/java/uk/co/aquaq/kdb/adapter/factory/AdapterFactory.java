@@ -1,6 +1,5 @@
 package uk.co.aquaq.kdb.adapter.factory;
 
-import uk.co.aquaq.kdb.adapter.customexceptions.AdapterConfigurationException;
 import uk.co.aquaq.kdb.adapter.envelopes.KdbEnvelope;
 import uk.co.aquaq.kdb.adapter.envelopes.KdbQuoteEnvelope;
 import uk.co.aquaq.kdb.adapter.envelopes.KdbTradeEnvelope;
@@ -9,8 +8,6 @@ import uk.co.aquaq.kdb.adapter.mapper.TradeMapper;
 import uk.co.aquaq.kdb.adapter.messages.*;
 import net.openhft.chronicle.wire.DocumentContext;
 import org.mapstruct.factory.Mappers;
-
-import java.lang.reflect.Field;
 
 public class AdapterFactory implements AbstractFactory<ChronicleMessage, KdbEnvelope, KdbMessage> {
 

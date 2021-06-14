@@ -2,7 +2,7 @@ package uk.co.aquaq.kdb.adapter.envelopes;
 
 import lombok.Getter;
 import lombok.Setter;
-import uk.co.aquaq.kdb.adapter.messages.KdbQuoteMessage;
+import uk.co.aquaq.kdb.adapter.messages.KdbMessage;
 import uk.co.aquaq.kdb.adapter.utils.AdapterProperties;
 
 import java.sql.Timestamp;
@@ -10,7 +10,7 @@ import java.util.Arrays;
 
 @Getter
 @Setter
-public abstract class KdbEnvelope<T> {
+public abstract class KdbEnvelope<T extends KdbMessage> {
 
   Object[] envelope;
   int envelopeDepth;
