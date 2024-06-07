@@ -324,3 +324,9 @@ Whilst there are some generic aspects to the adapter that are configurable e.g. 
 The scenario used was based on our quote messages. The messages were generated in a specific, known format, added to the queue in a specific manner, i.e. as a self-describing message. This allowed the adapter to map known fields from the source message to known fields in the destination object. Finally, the kdb+ table used was structured specifically for quote data.
 
 The quote adapter example that has been completed, should be considered as a base framework to develop further message specific adapters from Chronicle Queue into kdb+. 
+
+# Release Notes
+
+### Version 1.1.0
+
+Fixed an issue where messages are dropped from the Chronicle Queue if the application restarts when there are messages in KdbEnvelope that have not been sent to kdb+.
