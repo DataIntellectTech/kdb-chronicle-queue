@@ -127,11 +127,13 @@ public class ChronicleToKdbAdapter implements Runnable {
     // 2. Create "tailer" to listen for messages
     try (SingleChronicleQueue sourceQueue =
             SingleChronicleQueueBuilder.binary(adapterProperties.getChronicleSource()).build();
-        ExcerptTailer tailer = sourceQueue.createTailer(adapterProperties.getAdapterTailerName())) {
+        ExcerptTailer tailer = sourceQueue.createTailer(adapterProperties.getAdapterTailerName());
+        ExcerptTailer sentTailer = sourceQueue.createTailer(adapterProperties.getAdapterSentTailerName())) {
 
       log.info("Starting Chronicle kdb Adapter");
 
-      // Check last index read / starting index
+      // Check last index read / saved / starting index
+      rollbackToAfterLastSent(tailer, sentTailer);
       tailerIndex = tailer.index();
       log.info("Tailer starting at index: {}", tailerIndex);
 
@@ -153,6 +155,7 @@ public class ChronicleToKdbAdapter implements Runnable {
             if (!envelope.isEmpty()) {
               try {
                 trySend(adapterProperties, envelope);
+                sentTailer.moveToIndex(tailerIndex);
               } catch (Exception ex) {
                 rollbackEnvelope(envelope, tailer);
                 log.error("Problem saving envelope {}", ex.getMessage());
@@ -186,6 +189,7 @@ public class ChronicleToKdbAdapter implements Runnable {
           if (envelope.isFull()) {
             try {
               trySend(adapterProperties, envelope);
+              sentTailer.moveToIndex(tailerIndex);
             } catch (Exception ex) {
               rollbackEnvelope(envelope, tailer);
               log.error("Problem saving envelope {}", ex.getMessage());
@@ -221,11 +225,18 @@ public class ChronicleToKdbAdapter implements Runnable {
     tailer.moveToIndex(envelope.getFirstIndex());
   }
 
+  private void rollbackToAfterLastSent(ExcerptTailer tailer, ExcerptTailer sentTailer) {
+
+    if (sentTailer.index() != 0L) {
+      long indexAfterLastSent = sentTailer.index() + 1L;
+      if (tailer.index() > indexAfterLastSent) {
+        tailer.moveToIndex(indexAfterLastSent);
+      }
+    }
+  }
+
   private void trySend(AdapterProperties adapterProperties, KdbEnvelope<?> envelope)
       throws AdapterConfigurationException, KdbException {
-
-    long now = System.nanoTime();
-    if (now - lastWriteNanos < MIN_SEND_PAUSE_NANOS) return;
 
     int envelopeDepthBeforeSave = envelope.getEnvelopeDepth();
     saveCurrentEnvelope(adapterProperties, envelope);

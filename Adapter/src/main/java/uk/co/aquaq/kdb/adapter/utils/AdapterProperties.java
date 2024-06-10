@@ -14,6 +14,7 @@ public class AdapterProperties {
   private int coreAffinity;
   private String chronicleSource;
   private String adapterTailerName;
+  private String adapterSentTailerName;
   private String adapterMessageType;
   private String adapterMessageFilterField;
   private String adapterMessageFilterIn;
@@ -35,6 +36,7 @@ public class AdapterProperties {
     setCoreAffinity(Integer.parseInt(props.getProperty("adapter.coreAffinity", "-1")));
     setChronicleSource(props.getProperty("chronicle.source"));
     setAdapterTailerName(props.getProperty("chronicle.tailerName"));
+    setAdapterSentTailerName(props.getProperty("chronicle.sentTailerName"));
     setAdapterMessageType(props.getProperty("adapter.messageType"));
     setAdapterMessageFilterField(props.getProperty("adapter.messageFilterField", ""));
     setAdapterMessageFilterIn(props.getProperty("adapter.messageFilterIn", ""));
